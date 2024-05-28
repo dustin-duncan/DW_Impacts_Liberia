@@ -5,6 +5,11 @@ format: html
 editor: visual
 ---
 
+```{r}
+library(tidyverse)
+library(here)
+```
+
 
 ```{r}
 fishstatj <- read.csv(here("Data/Other/FishstatJ_Liberia_capture_production.csv")) %>% 
@@ -33,4 +38,9 @@ unique(tuna_longer$asfis_species_name)
 ggplot(data = tuna_longer, aes(x = year, y = tons, color = asfis_species_name)) + 
   geom_line()
 ```
+
+
+
+
+
 
