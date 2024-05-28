@@ -1,0 +1,110 @@
+---
+title: "Data Limited Methods of Stock Assessment"
+author: "Dustin Duncan"
+format: 
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    embed-resources: true
+editor: visual
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+
+## Data limited (1st iteration)
+
+Anderson, S. C., Afflerbach, J., Cooper, A. B., Dickey-Collas, M., Jensen, O. P.,
+Kleisner, K. M., et al. (2016) Datalimited: Stock Assessment Methods for Data-
+Limited Fisheries. R Package Version 0.1.0. Available at: https://github.com/
+datalimited/datalimited.
+
+[Github link](https://github.com/datalimited/datalimited)
+
+```{r}
+library("datalimited")
+set.seed(1)
+?cmsy
+bg =blue_gren
+
+x <- cmsy(blue_gren$yr, ct = blue_gren$ct, reps = 2e4)
+names(x)
+#> [1] "theta"       "biomass"     "bmsy"        "msy"         "mean_ln_msy"
+#> [6] "bbmsy"
+par(mfrow = c(2, 2))
+plot(blue_gren$yr, blue_gren$ct, type = "o", xlab = "Year", 
+  ylab = "Catch (t)")
+plot(blue_gren$yr,  apply(x$biomass, 2, median)[-1], type = "o",
+  ylab = "Estimated biomass", xlab = "Year")
+hist(x$bmsy)
+plot(x$theta$r, x$theta$k, col = "#00000030")
+
+?comsir
+x <- comsir(ct = blue_gren$ct, yr = blue_gren$yr, nsim = 1e5,
+  n_posterior = 2e3)
+par(mfrow = c(1, 2))
+hist(x$quantities$bbmsy)
+with(x$posterior, plot(r, k))
+```
+
+
+## Data limited 2 (catch-only methods of assessment)
+
+Free, C. M. (2018) Datalimited2: More Stock Assessment Methods for Data-Limited
+Fisheries. R Package Version 0.1.0. Available at: https://github.com/cfree14/
+datalimited2.
+
+[Github Link](https://github.com/cfree14/datalimited2)
+
+The package implements the following catch-only stock assessment models:
+
+* cMSY from Froese et al. 2017; see ?cmsy2
+
+* Bayesian surplus production model (BSM) from Froese et al. 2017; see ?bsm
+
+* Boosted regression tree approach (zBRT) from Zhou et al. 2017a; see ?zbrt
+
+* Optimized catch-only model (OCOM) from Zhou et al. 2017b; see ?ocom
+
+* Refined ORCS approach (rORCS) from Free et al. 2017; see ?rorcs
+
+* Multispecies cMSY (MS-cMSY) from Free et al. in prep; see ?ms_cmsy
+
+* The results of all but the rORCS model can be visualized using the ?plot_dlm function.
+
+* The performance of catch-only methods (i.e., their ability to accurately estimate B/BMSY or accurately classify categorical status) can be compared using the ?performance function.
+
+* Many of these catch-only methods require estimates of resilience to set priors and resilience estimates can be retrieved from FishBase/SeaLifeBase busing the ?resilience function.
+
+```{r}
+# devtools::install_github("cfree14/datalimited2")
+library(datalimited2)
+
+?resilience
+
+```
+
+## Random Forest method 
+
+Liaw, A. and Wiener, M. (2002). Classification and Regression by Randomforest.
+R News. 2, 18–22.
+
+```{r}
+# install.packages("randomForest")
+library(randomForest)
+
+```
+
+## FishLife (critical information about fish taxa)
+
+Thorson, J. T. (2020). Predicting recruitment density dependence and intrinsic growth rate for all fishes worldwide using a data‐integrated life‐history model. Fish and Fisheries, 21(2), 237-251.
+
+```{r}
+# devtools::install_github("james-thorson/FishLife")
+library(FishLife)
+# remotes::install_github( 'ropensci/rfishbase@fb-21.06', force=TRUE )
+library(rfishbase)
+```
