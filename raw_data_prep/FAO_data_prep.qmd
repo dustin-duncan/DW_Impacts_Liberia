@@ -38,9 +38,3 @@ unique(tuna_longer$asfis_species_name)
 ggplot(data = tuna_longer, aes(x = year, y = tons, color = asfis_species_name)) + 
   geom_line()
 ```
-
-
-
-
-
-
