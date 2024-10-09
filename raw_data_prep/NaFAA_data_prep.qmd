@@ -180,9 +180,25 @@ total_mean_k <- mean(total_viable_k_values)*1000
 total_mean_k # 11,916,913
 ```
 
+### Biological Model Formula
 
+$$
+B_{t+1} = B_t + (\frac{\Omega + 1}{\Omega} ) g \beta + 1-(\frac{B_t}{K})^{\Omega} - gf_tb_t
+$$ 
 
+### Profit function from biological model estimates 
 
+- $\Pi$ = marginal profit 
 
+$$
+\Pi_{t} = pH_t - cF_t^{\beta}
+$$
+## Ideal* profit scenario
+
+- $\Pi_{MSY}$ = ideal marginal profit under sustainable exploitation 
+
+$$
+\Pi_{MSY} = p_{MSY}f_t b_t - c(f_t g )^{\beta}
+$$
 
 
