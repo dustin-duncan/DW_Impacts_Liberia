@@ -168,6 +168,7 @@ total_aurita <- tibble(Species = dwf_aurita$Species, Catch=(dwf_aurita$Catch + s
 total_aurita_traits <- cmsy2(year=total_aurita$Year, catch=total_aurita$Catch, r.low=0.47, r.hi=0.77)
 
 plot_dlm(total_aurita_traits)
+datalimited2::resilience(species=c("Sardinella aurita"))
 ```
 
 
