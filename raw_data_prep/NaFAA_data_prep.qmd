@@ -154,10 +154,27 @@ ssf_mean_k <- mean(ssf_viable_k_values)*1000
 ## Identifying Species Harvested by both DWF and SSF 
 
 ```{r}
-spp_in_both <- dwf_ts %>% 
-  select(Species) %>% 
-  filter(Species %in% ssf_ts$Species)
-print(spp_in_both$Species)
+spp_in_both_dwf <- dwf_ts %>% 
+  select(Species, paste0("20", seq(from=18,to=23))) %>% 
+  filter(Species %in% ssf_ts$Species) %>% 
+  na.omit()
+spp_in_both_ssf <- ssf_ts %>% 
+  select(Species, paste0("20", seq(from=18,to=23))) %>% 
+  filter(Species %in% dwf_ts$Species) %>% 
+  na.omit()
+
+overall_spp_in_both <- spp_in_both_ssf %>% 
+  filter(Species %in% spp_in_both_dwf$Species)
+
+spp_vector <- overall_spp_in_both$Species[1:12]
+
+ssf_test <- ssf_ts %>% 
+  filter(Species %in% spp_vector)
+
+dwf_test <- dwf_ts %>% 
+  filter(Species %in% spp_vector)
+
+print(spp_vector)
 ```
 
 ### Combined catch estimate of parameters  
