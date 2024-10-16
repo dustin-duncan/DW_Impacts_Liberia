@@ -176,10 +176,16 @@ dwf_test <- dwf_ts %>%
 
 print(spp_vector)
 resilience_table <- resilience(species=spp_vector[1:12])
+resilience_table[11,1] = c("Dasyatis margarita")
+resilience_table[11,2] = c("Not Documented")
 
-resilience_table$common = c("Cusk-eel", "bumper", "flatfish", "ray-finned fish", "grunt", "ray-finned fish", "ray-finned fish", "mackerel", "barracuda", "cutlass fish")
+spp_vector
 
-knitr::kable(resilience_table[ ,1:3])
+resilience_table$common = c("Cusk-eel", "bumper", "flatfish", "ray-finned fish", "grunt", "ray-finned fish", "ray-finned fish", "mackerel", "barracuda", "cutlass fish", "ray")
+
+resilience_table$researcher = c("Dustin","Dustin","Abigail","Mara","Taylor","Taylor","NA","Maddy","Maddy","Abigail", "Mara")
+
+knitr::kable(resilience_table[ ,1:4])
 ```
 
 ### Combined catch estimate of parameters  
