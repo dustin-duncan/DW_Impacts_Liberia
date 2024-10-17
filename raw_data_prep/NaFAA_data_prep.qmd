@@ -229,12 +229,10 @@ $$
 $$
 \Pi_{MSY} = p_{MSY}f_t b_t - c(f_t g )^{\beta}
 $$
-$$
-\mathrm{\text{Escapement:}} \\
-\mathrm{Esc_t = \frac{1}{x}(B_t -H_t)} \\ 
+$$ 
 \text{Biological Model:} \\
-\mathrm{B_{t+1}^{DWF}= B_{t}^{DWF}+ \frac{\Phi+1}{\Phi}gB_{t}^{DWF}(1-\frac{B_{t}^{DWF}}{K})^\Phi-H_{t}^{DWF} + Esc_t} \\ ~ \\
-\mathrm{B_{t+1}^{SSF}= B_{t}^{SSF}+ \frac{\Phi+1}{\Phi}gB_{t}^{SSF}(1-\frac{B_{t}^{SSF}}{K})^\Phi-H_{t}^{SSF} + Esc_t} \\
+\mathrm{B_{t+1}^{DWF}= B_{t}^{DWF}+ \frac{\Phi+1}{\Phi}gB_{t}^{DWF}(1-\frac{B_{t}^{DWF}}{K})^\Phi-H_{t}^{DWF}} \\ ~ \\
+\mathrm{B_{t+1}^{SSF}= B_{t}^{SSF}+ \frac{\Phi+1}{\Phi}gB_{t}^{SSF}(1-\frac{B_{t}^{SSF}}{K})^\Phi-H_{t}^{SSF}} \\
 \text{Profit Function:} \\
 \mathrm{\Pi_{t}^{DWF}=(1-\alpha)pH_{t}^{DWF}-\frac{cH_{t}^{DWF}}{X_t} }
 $$
