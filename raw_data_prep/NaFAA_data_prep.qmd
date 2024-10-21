@@ -236,7 +236,13 @@ $$
 \text{Profit Function:} \\
 \mathrm{\Pi_{t}^{DWF}=(1-\alpha)pH_{t}^{DWF}-\frac{cH_{t}^{DWF}}{X_t} }
 $$
+$$
+\mathrm{B_{1,t+1} = D_{1,1}[B_{1,t}+ \frac{\Phi+1}{\Phi}gB_{1,t}(1-\frac{B_{1,t}}{K_{1}})^\Phi-H_{1,t}]  \\ ~~~~~~~~~~~+ D_{2,1}[B_{2,t}+ \frac{\Phi+1}{\Phi}gB_{2,t}(1-\frac{B_{2,t}}{K_{2}})^\Phi-H_{2,t}]}
+$$
 
 
-
-
+$$
+\mathrm{\Pi_{1,t}=p_{1}H_{1,t}-c_{1}F_{1,t}} \\ 
+\mathrm{\Pi_{2,t}=p_{2}H_{2,t}-c_{2}F_{2,t}} \\ ~ \\
+\mathrm{H_{i,t}=F(B_{i,t},C_{i,t},F_{i,t})} 
+$$
