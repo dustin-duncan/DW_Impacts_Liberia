@@ -31,7 +31,7 @@ library(datalimited2) # Package containing functions for use in Data-limited fis
 
 ## Industrial Fleet Dataprep
 
-Note: For now, we will only be focusing on the Sardinella *aurita* species, although we have created a vector of the species that are present in both DWF and SSF data in case we apply the model to additional species 
+Note: For now, we will only be focusing on the Sardinella *aurita* species, although we have created a vector of the species that are present in both DWF and SSF data in case we apply the model to additional species
 
 ```{r reading in DWF data}
 dwf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Industrial prod 2018-2023", skip = 3, n_max = 76, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
@@ -55,7 +55,7 @@ grand_total <- dwf_ts[dwf_ts$Species == "Sardinella aurita", c(1,8)]
 sum(dwf_aurita$Catch) == grand_total$`Grand Total`
 ```
 
-### Using Chris Free's 'datalimited2' package to conduct preliminary DWF stock assessment 
+### Using Chris Free's 'datalimited2' package to conduct preliminary DWF stock assessment
 
 ```{r DWF Data Limited Stock assessment, fig.height=6}
 # ?cmsy2 # Could be useful to use. Takes time series of years (year), time series of catch (catch) and ideally the species intrinsic growth rate, r (r.low, r.hi)
@@ -104,8 +104,6 @@ mean_pred <- as.data.frame(Predict[[1]]["Mean_pred"])
 # ?ocom # Could be useful but would need a natural mortality (1/yr are the units)
 ```
 
-
-
 ## Artisanal Fleet Dataprep
 
 ```{r reading in SSF data}
@@ -131,7 +129,6 @@ sum(ssf_aurita$Catch) == grand_total$`Grand Total`
 
 ```
 
-
 ```{r SSF Data Limited Stock assessment}
 # ?cmsy2 # Could be useful to use 
 # ?zbrt # Could also be useful to use 
@@ -142,7 +139,6 @@ ssf_aurita_traits <- cmsy2(year = ssf_aurita$Year, catch = ssf_aurita$Catch, r.l
 plot_dlm(ssf_aurita_traits)
 ```
 
-
 ```{r Parameter storing }
 options(scipen=999)
 ssf_ref_pts <- ssf_aurita_traits[["ref_pts"]]
@@ -151,7 +147,7 @@ ssf_viable_k_values <- ssf_aurita_traits[["k_viable"]]
 ssf_mean_k <- mean(ssf_viable_k_values)*1000
 ```
 
-## Identifying Species Harvested by both DWF and SSF 
+## Identifying Species Harvested by both DWF and SSF
 
 ```{r}
 spp_in_both_dwf <- dwf_ts %>% 
@@ -188,7 +184,7 @@ resilience_table$researcher = c("Dustin","Dustin","Abigail","Mara","Taylor","Tay
 knitr::kable(resilience_table[ ,1:4])
 ```
 
-### Combined catch estimate of parameters  
+### Combined catch estimate of parameters
 
 ```{r}
 total_aurita <- tibble(Species = dwf_aurita$Species, Catch=(dwf_aurita$Catch + ssf_aurita$Catch), Year=dwf_aurita$Year)
@@ -198,7 +194,6 @@ total_aurita_traits <- cmsy2(year=total_aurita$Year, catch=total_aurita$Catch, r
 plot_dlm(total_aurita_traits)
 datalimited2::resilience(species=c("Sardinella aurita"))
 ```
-
 
 ```{r}
 options(scipen=999)
@@ -213,36 +208,38 @@ total_mean_k # 11,916,913
 
 $$
 B_{t+1} = B_t + (\frac{\Omega + 1}{\Omega} ) g \beta + 1-(\frac{B_t}{K})^{\Omega} - gf_tb_t
-$$ 
+$$
 
-### Profit function from biological model estimates 
+### Profit function from biological model estimates
 
-- $\Pi$ = marginal profit 
+-   $\Pi$ = marginal profit
 
 $$
 \Pi_{t} = pH_t - cF_t^{\beta}
-$$
-## Ideal* profit scenario
+$$ \## Ideal\* profit scenario
 
-- $\Pi_{MSY}$ = ideal marginal profit under sustainable exploitation 
+-   $\Pi_{MSY}$ = ideal marginal profit under sustainable exploitation
 
 $$
 \Pi_{MSY} = p_{MSY}f_t b_t - c(f_t g )^{\beta}
-$$
-$$ 
+$$ $$ 
 \text{Biological Model:} \\
 \mathrm{B_{t+1}^{DWF}= B_{t}^{DWF}+ \frac{\Phi+1}{\Phi}gB_{t}^{DWF}(1-\frac{B_{t}^{DWF}}{K})^\Phi-H_{t}^{DWF}} \\ ~ \\
 \mathrm{B_{t+1}^{SSF}= B_{t}^{SSF}+ \frac{\Phi+1}{\Phi}gB_{t}^{SSF}(1-\frac{B_{t}^{SSF}}{K})^\Phi-H_{t}^{SSF}} \\
 \text{Profit Function:} \\
 \mathrm{\Pi_{t}^{DWF}=(1-\alpha)pH_{t}^{DWF}-\frac{cH_{t}^{DWF}}{X_t} }
-$$
-$$
+$$ $$
 \mathrm{B_{1,t+1} = D_{1,1}[B_{1,t}+ \frac{\Phi+1}{\Phi}gB_{1,t}(1-\frac{B_{1,t}}{K_{1}})^\Phi-H_{1,t}]  \\ ~~~~~~~~~~~+ D_{2,1}[B_{2,t}+ \frac{\Phi+1}{\Phi}gB_{2,t}(1-\frac{B_{2,t}}{K_{2}})^\Phi-H_{2,t}]}
 $$
-
 
 $$
 \mathrm{\Pi_{1,t}=p_{1}H_{1,t}-c_{1}F_{1,t}} \\ 
 \mathrm{\Pi_{2,t}=p_{2}H_{2,t}-c_{2}F_{2,t}} \\ ~ \\
 \mathrm{H_{i,t}=F(B_{i,t},C_{i,t},F_{i,t})} 
+
+
+$$
+
+$$
+max_\alpha,\pi_1,\pi_2\sum_{t = 1}^{T}{(\beta(\pi_1) + (1-\beta)(\alpha\pi_2))}
 $$
