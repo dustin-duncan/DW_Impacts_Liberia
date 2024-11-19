@@ -216,35 +216,36 @@ $$
 
 $$
 \Pi_{t} = pH_t - cF_t^{\beta}
-$$ \## Ideal\* profit scenario
+$$ 
+
+## Ideal profit scenario
 
 -   $\Pi_{MSY}$ = ideal marginal profit under sustainable exploitation
 
 $$
 \Pi_{MSY} = p_{MSY}f_t b_t - c(f_t g )^{\beta}
-$$ $$ 
+$$ 
+
+$$ 
 \text{Biological Model:} \\
 \mathrm{B_{t+1}^{DWF}= B_{t}^{DWF}+ \frac{\Phi+1}{\Phi}gB_{t}^{DWF}(1-\frac{B_{t}^{DWF}}{K})^\Phi-H_{t}^{DWF}} \\ ~ \\
 \mathrm{B_{t+1}^{SSF}= B_{t}^{SSF}+ \frac{\Phi+1}{\Phi}gB_{t}^{SSF}(1-\frac{B_{t}^{SSF}}{K})^\Phi-H_{t}^{SSF}} \\
 \text{Profit Function:} \\
 \mathrm{\Pi_{t}^{DWF}=(1-\alpha)pH_{t}^{DWF}-\frac{cH_{t}^{DWF}}{X_t} }
-$$ $$
+$$ 
+$$
 \mathrm{B_{1,t+1} = D_{1,1}[B_{1,t}+ \frac{\Phi+1}{\Phi}gB_{1,t}(1-\frac{B_{1,t}}{K_{1}})^\Phi-H_{1,t}]  \\ ~~~~~~~~~~~+ D_{2,1}[B_{2,t}+ \frac{\Phi+1}{\Phi}gB_{2,t}(1-\frac{B_{2,t}}{K_{2}})^\Phi-H_{2,t}]}
 $$
 
-$$
-\mathrm{\Pi_{1,t}=p_{1}H_{1,t}-c_{1}F_{1,t}} \\ 
-\mathrm{\Pi_{2,t}=p_{2}H_{2,t}-c_{2}F_{2,t}} \\ ~ \\
-\mathrm{H_{i,t}=F(B_{i,t},C_{i,t},F_{i,t})} 
-
-
+$$ 
+\mathrm{\Pi_{1,t}=p_{1}H_{1,t}-c_{1}F_{1,t}} \\ \mathrm{\Pi_{2,t}=p_{2}H_{2,t}-c_{2}F_{2,t}} \\ ~ \\ \mathrm{H_{i,t}=F(B_{i,t},C_{i,t},F_{i,t})}
 $$
 
 $$
 max_\alpha,\pi_1,\pi_2\sum_{t = 1}^{T}{(\beta(\pi_1) + (1-\beta)(\alpha\pi_2))}
 $$
 
-## Biological Parameter Estimates 
+## Biological Parameter Estimates
 
 ```{r}
 prev_estimates = tibble(Species = c("S. aurita","S. maderensis","S. aurita","S. aurita"), State=c("Cote d'Ivoir", "Liberia", "Senegal", "Mauritania"), M_yr=c(1.49, 0.81, 0.473, 0.32), F_yr=c(0.61, 0.794, NA, NA), L50=c(23.42, NA, NA, NA))
@@ -290,7 +291,6 @@ abundance = function(int_state, S0, S1, S2, M, FR1, FR2, effort, period) {
 test = abundance(int_state=10000, S0=0.85, S1=0.50, S2=0.2, M=(1-exp(-0.81)), FR1=0.40, FR2=0.43, effort=1, period=11)
 ```
 
-
 $$
 \mathrm{log_{10}(M)=-0.0066 - 0.279*log_{10}(L_{\infty})+0.6543*log_{10}(K)+0.4634*log_{10}(T) \\
 \text{T = mean water temp C} \\
@@ -298,9 +298,9 @@ $$
 \text{Solving for M:} \\ 
 M =10^{-0.0066}*10^{-0.279*log_{10}(L_{\infty})}*10^{0.6543log_{10}(K)}*10^{0.4634log_{10}(T)} \\ 
 M=10^{-0.0066}*L_{\infty}^{-0.279}*K^{0.6543}*T^{0.4634}}
-
 $$
-## Solving this in R for given parameters 
+
+## Solving this in R for given parameters
 
 ```{r}
 tmax=c(13.11,9.15, 10.89,6.39,10.81,9.91,4.58,4.75,12.22,3.97,10.77)
@@ -334,33 +334,3 @@ M2 = Mfunc(Linf=Linf_estimate, K=K_est, Temp=27)
 v2=1-exp(-M2)
 v_est=1-exp(-M_est)
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
