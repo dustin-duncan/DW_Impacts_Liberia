@@ -243,3 +243,124 @@ $$
 $$
 max_\alpha,\pi_1,\pi_2\sum_{t = 1}^{T}{(\beta(\pi_1) + (1-\beta)(\alpha\pi_2))}
 $$
+
+## Biological Parameter Estimates 
+
+```{r}
+prev_estimates = tibble(Species = c("S. aurita","S. maderensis","S. aurita","S. aurita"), State=c("Cote d'Ivoir", "Liberia", "Senegal", "Mauritania"), M_yr=c(1.49, 0.81, 0.473, 0.32), F_yr=c(0.61, 0.794, NA, NA), L50=c(23.42, NA, NA, NA))
+
+prev_estimates = prev_estimates %>% 
+  mutate(Z=M_yr+F_yr) %>% 
+  mutate(A= 1-exp(-Z)) %>% 
+  mutate(S=1-A)
+
+knitr::kable(prev_estimates, align='c')
+```
+
+## Creating Abundance function
+
+```{r}
+
+abundance = function(int_state, S0, S1, S2, M, FR1, FR2, effort, period) {
+  
+  O=vector(mode="numeric", length=0)
+  Y=vector(mode="numeric", length=0)
+  J=vector(mode="numeric", length=0)
+  
+  O[1]=int_state 
+  Y[1]=8500 #define this 
+  gamma1=0.28
+  gamma2=0.40
+  J[1]=gamma1*Y[1] + gamma2*O[1]
+  A2=M+FR2 # both of these need to be between 0 and 1 and A cannot be > 1
+  A1=M+FR1
+  
+  for(i in 2:period) {
+    
+    Y[i]=S0*J[i-1]-A1*Y[i-1]-S1*Y[1]
+    
+    O[i]=S1*Y[i-1]-A2*O[i-1] + O[i-1]
+    
+    J[i]=gamma1*Y[i] + gamma2*O[i]
+  }
+  
+  return(data.frame(Old=O, Young=Y, Juvenile=J))
+}
+
+test = abundance(int_state=10000, S0=0.85, S1=0.50, S2=0.2, M=(1-exp(-0.81)), FR1=0.40, FR2=0.43, effort=1, period=11)
+```
+
+
+$$
+\mathrm{log_{10}(M)=-0.0066 - 0.279*log_{10}(L_{\infty})+0.6543*log_{10}(K)+0.4634*log_{10}(T) \\
+\text{T = mean water temp C} \\
+\text{K = growth coefficient} \\ 
+\text{Solving for M:} \\ 
+M =10^{-0.0066}*10^{-0.279*log_{10}(L_{\infty})}*10^{0.6543log_{10}(K)}*10^{0.4634log_{10}(T)} \\ 
+M=10^{-0.0066}*L_{\infty}^{-0.279}*K^{0.6543}*T^{0.4634}}
+
+$$
+## Solving this in R for given parameters 
+
+```{r}
+tmax=c(13.11,9.15, 10.89,6.39,10.81,9.91,4.58,4.75,12.22,3.97,10.77)
+tmax_est=mean(tmax)
+to=c(-0.87,1.46,-1.78,-.94,-.6,-.69,-.21,-.24,-.99,-.06,-.76)
+to_est=mean(to)
+Linf_vect=c(41.6,37,39.4,36.3,40.7,45.9,37.3,42,42.1,36.5, 35.4)
+Linf_estimate=mean(Linf_vect)
+K_vect=c(.26, .39, .32, .41, .33,.36,.97,.6,.28,1.21,.26)
+K_est=mean(K_vect)
+FM=c(55,52,55,50.5,51.1)
+FM_est=mean(FM)
+M=c(.22,.32,.27,.47,.27,.3,.65,.63,.24,.75,.27)
+M_est=mean(M)
+
+Mfunc = function(Linf, K, Temp){
+  
+  X=-0.0066-(0.279*log10(Linf))+(0.6543*log10(K))+(0.4634*log10(Temp))
+  M=10^X
+  # M = 10^(-0.0066)*(Linf^(-0.279))*(K^(0.6543))*(Temp^(0.4634))
+  
+  return(M)
+}
+Vfunc=function(M){
+  V=1-exp(-M)
+  return(V)
+}
+M1 = Mfunc(Linf=31.5, K=0.78, Temp=27)
+v1=1-exp(-M1)
+M2 = Mfunc(Linf=Linf_estimate, K=K_est, Temp=27)
+v2=1-exp(-M2)
+v_est=1-exp(-M_est)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

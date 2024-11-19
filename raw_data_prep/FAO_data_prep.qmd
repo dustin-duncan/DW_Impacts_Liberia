@@ -37,3 +37,206 @@ unique(tuna_longer$asfis_species_name)
 ggplot(data = tuna_longer, aes(x = year, y = tons, color = asfis_species_name)) + 
   geom_line()
 ```
+
+
+## Extracting catch, effort, and CPUE for sardinella spp. from FAO CECAF Small Pelagics Report 
+
+citation: FAO. 2019. Report of the FAO/CECAF Working Group on the Assessment of Small Pelagic Fish – Subgroup South. Elmina,
+Ghana, 12-20 September 2018. Rapport du Groupe de travail FAO/COPACE sur l’évaluation des petits poissons pélagiques
+– Sous-groupe Sud. Elmina, Ghana, 12-20 septembre 2018. CECAF/ECAF Series / COPACE/PACE Séries No. 19/81. Rome.
+
+```{r}
+# Installing rJava requires you to install or have java on your computer. 
+# Instructions for macOS 
+# 1. visit this link and download the latest version of Java (mine was version 23) (as .dmg) then follow the instructions to install the application https://www.azul.com/downloads/?os=macos&architecture=arm-64-bit&package=jdk#zulu
+# 2. Run this in your terminal: java -version
+# 3. Verify by ensuring that the output of the above terminal command looks something like this:
+# openjdk version "21.0.4" 2024-07-16 LTS 
+# OpenJDK Runtime Environment Zulu21.36+17-CA (build 21.0.4+7-LTS)
+# OpenJDK 64-Bit Server VM Zulu21.36+17-CA (build 21.0.4+7-LTS, mixed mode, sharing)
+# 4. Then run the following in your terminal: sudo R CMD javareconf 
+# This will ensure R knows where to find Java 
+# 5. Run the below code to install java
+# install.packages("rJava")
+# 6. Now restart R, then come back and run the following:
+# remotes::install_github(c("ropensci/tabulizerjars", "ropensci/tabulizer"))
+
+# 7. Now library it in and start your work 
+library(tabulapdf)
+library(dplyr)
+library(tidyr)
+library(tibble)
+library(purrr)
+library(janitor)
+library(here)
+```
+
+## Getting to it with Catch, effort and CPUE data 
+
+### Defining file path to FAO Report 
+
+```{r}
+?tabulapdf::extract_tables
+## Defining filepath to the FAO report
+pdf_fp=file.path(here("data_raw/data_FAO/FAO_CECAF_Small_Pelagics_Report_copy.pdf"))
+```
+
+### Catch
+
+```{r}
+## Extracting the tables of catch for Sardinella spp. by country, fleet, and year. This is in list format so we need to create dfs by calling the listed tibbles 
+catch=extract_tables(pdf_fp, pages=c(119,120),output="tibble")
+
+## Creating the dataframes from catch 
+catch1=catch[[1]]
+catch2=catch[[2]]
+
+## Cleaning catch1 dataframe (years 1990-2003)
+catch1_clean = catch1 %>% 
+  # Making sure R knows that the row above Liberia is also Liberia
+  mutate(Country = case_when(
+    row_number() == 4 ~ "Liberia",
+    TRUE ~ Country
+  )) %>% 
+  # Filtering to just liberia
+  filter(Country %in% "Liberia")
+
+## Cleaning catch2 dataframe (years 2004-2017)
+catch2_clean = catch2 %>% 
+  mutate(Country = case_when(
+    row_number() == 4 ~ "Liberia",
+    TRUE ~ Country
+  )) %>% 
+  filter(Country %in% "Liberia") %>% 
+  # Renaming these columns because they are the same name in both and will cause problems 
+  rename(country= Country) %>% 
+  rename(fleet = Fleet)
+
+## Now binding the dataframes by column before pivoting 
+catch_bound = catch1_clean %>% 
+  cbind(catch2_clean) %>% 
+  select(-c(country, fleet))
+
+## Pivoting to create time series of artisanal and industrial catch for Liberia 1990-2017
+catch_ts = catch_bound %>% 
+  pivot_longer(cols = -c(Country, Fleet),
+               names_to = "Year",
+               values_to = "Catch_tonnes") %>% 
+  # Finally reclassifying FAO/Industrial to simply "industrial"
+  mutate(Fleet = case_when(
+    Fleet == "FAO/Industrial" ~ "Industrial",
+    TRUE ~ Fleet
+  )) %>% 
+  as.data.frame()
+
+## Defining filepath for output and writing csv out.
+
+# fp_out = file.path(here("data_int/data_FAO/catch_timeseries_1990_2017.csv"))
+# write.csv(catch_ts, file=fp_out)
+```
+
+### Effort 
+
+```{r}
+# Effort is in units of fishing days! per year 
+effort=extract_tables(pdf_fp, pages=c(121,122),output="tibble")
+effort1 = effort[[1]]
+effort2 = effort[[2]]
+
+effort1_clean = effort1 %>% 
+  mutate(Country = case_when(
+    row_number() == 6 ~ "Liberia",
+    row_number() == 8 ~ "Liberia",
+    row_number() == 7 ~ "Out",
+    TRUE ~ Country
+  )) %>% 
+  filter(Country %in% "Liberia")
+
+effort2_clean = effort2 %>% 
+  mutate(Country = case_when(
+    row_number() == 8 ~ "Liberia",
+    row_number() == 10 ~ "Liberia",
+    row_number() == 9 ~ "Out",
+    TRUE ~ Country
+  )) %>% 
+  filter(Country %in% "Liberia") %>% 
+  rename(country = Country) %>% 
+  rename(fleet = Fleet)
+
+effort_bound = effort1_clean %>% 
+  cbind(effort2_clean) %>% 
+  select(-c(country, fleet))
+
+effort_ts = effort_bound %>% 
+  pivot_longer(cols = -c(Country, Fleet),
+               names_to = "Year",
+               values_to = "Effort") %>% 
+  mutate(Fleet = case_when(
+    Fleet == "FAO/Industrial" ~ "Industrial",
+    TRUE ~ Fleet
+  )) %>% 
+  as.data.frame()
+
+## Writing out 
+# fp_effort_out=file.path(here("data_int/data_FAO/effort_timeseries_1990_2017.csv"))
+# write.csv(effort_ts, file = fp_effort_out)
+```
+
+
+### CPUE 
+
+```{r}
+cpue=extract_tables(pdf_fp, pages=c(127,128, 129),output="tibble")
+cpue1 = cpue[[1]]
+cpue2 = cpue[[2]]
+cpue3 = cpue[[3]]
+
+cpue1_clean = cpue1 %>% 
+  mutate(Country = case_when(
+    row_number() == 3 ~ "Liberia",
+    row_number() == 5 ~ "Liberia",
+    row_number() == 4 ~ "Out",
+    TRUE ~ Country
+  )) %>% 
+  filter(Country %in% "Liberia")
+
+cpue2_clean = cpue2 %>% 
+  mutate(Country = case_when(
+    row_number() == 3 ~ "Liberia",
+    row_number() == 5 ~ "Liberia",
+    row_number() == 4 ~ "Out",
+    TRUE ~ Country
+  )) %>% 
+  filter(Country %in% "Liberia") %>% 
+  rename(country = Country) %>% 
+  rename(fleet = Fleet)
+
+cpue3_clean = cpue3 %>% 
+  mutate(Country = case_when(
+    row_number() == 3 ~ "Liberia",
+    row_number() == 5 ~ "Liberia",
+    row_number() == 4 ~ "Out",
+    TRUE ~ Country
+  )) %>% 
+  filter(Country %in% "Liberia") %>% 
+  rename(country = Country) %>% 
+  rename(fleet = Fleet)
+
+cpue_bound =cpue1_clean %>% 
+  cbind(cpue2_clean) %>% 
+  select(-c(country, fleet)) %>% 
+  cbind(cpue3_clean) %>% 
+  select(-c(country, fleet))
+
+cpue_ts = cpue_bound %>% 
+  pivot_longer(cols = -c(Country, Fleet),
+               names_to = "Year",
+               values_to = "Effort") %>% 
+  as.data.frame()
+
+
+## Writing out 
+# fp_cpue_out=file.path(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
+# write.csv(cpue_ts, file = fp_cpue_out)
+```
+
