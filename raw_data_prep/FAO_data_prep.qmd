@@ -206,9 +206,8 @@ cpue_ts = cpue_bound %>%
 
 
 ## Writing out 
-fp_cpue_out=file.path(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
-write.csv(cpue_ts, file = fp_cpue_out)
-cpue = read.csv(fp_cpue_out)
+# fp_cpue_out=file.path(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
+# write.csv(cpue_ts, file = fp_cpue_out)
 ```
 
 ### Catch for Cote d'Ivoir
