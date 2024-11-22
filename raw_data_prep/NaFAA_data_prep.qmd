@@ -55,6 +55,108 @@ grand_total <- dwf_ts[dwf_ts$Species == "Sardinella aurita", c(1,8)]
 sum(dwf_aurita$Catch) == grand_total$`Grand Total`
 ```
 
+## Artisanal Fleet Dataprep
+
+```{r reading in SSF data}
+ssf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Artisanal prod 2018-2023", skip = 3, n_max = 106, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
+  rename(Species = ...1)
+view(ssf_ts)
+```
+
+```{r cleaning SSF data}
+# Tidying the dwf_ts dataframe 
+ssf_aurita <- ssf_ts %>% 
+  filter(Species %in% c("Sardinella aurita")) %>% # Filtering relevant species 
+  select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
+  pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
+  # Pivoting to tidy format
+  mutate(Year=as.numeric(Year))
+
+# Isolating the grand total of S. aurita catch from the 'dwf_ts' dataframe
+grand_total <- ssf_ts[ssf_ts$Species == "Sardinella aurita", c(1,8)]
+
+# Check to ensure that the values present in the time series dataframe match the grand total in the dwf_ts dataframe 
+sum(ssf_aurita$Catch) == grand_total$`Grand Total`
+
+```
+
+
+## Combining NaFAA data with catch timeseries from 1990-2017 from FAO. 
+
+Due to the civil war in Liberia occuring from 1989 - 2003 and having a large impact on fisheries activities, I think it would be prudent to use the FAO catch data from after 2003. In addition, the FAO catch data is for Sardinella spp., rather than Sardinella aurita, so I will be using the above data to estimate proportion of Sardinella aurita in catch as compared to Sardinella maderensis, to dis-aggregate the FAO data into S. aurita and S. maderensis.
+
+### Estimating proportion of S. aurita to S. maderensis from NaFAA data. 
+
+```{r}
+ssf_both <- ssf_ts %>% 
+  filter(Species %in% c("Sardinella maderensis")) %>% # Filtering relevant species 
+  select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
+  pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
+  # Pivoting to tidy format
+  mutate(Year=as.numeric(Year)) %>% 
+  rename(S_mad = Species) %>% 
+  rename(C_mad = Catch) %>% 
+  full_join(x=., y=ssf_aurita, by="Year") %>% 
+  mutate(S_aur_to_S_mad = Catch/C_mad) 
+
+avg_ssf_ratio = mean(ssf_both$S_aur_to_S_mad) # 0.21
+
+dwf_both <- dwf_ts %>% 
+  filter(Species %in% c("Sardinella")) %>% # Filtering relevant species 
+  select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
+  pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
+  # Pivoting to tidy format
+  mutate(Year=as.numeric(Year) )%>% 
+  rename(S_mad = Species) %>% 
+  rename(C_mad = Catch) %>% 
+  full_join(x=., y=dwf_aurita, by="Year")  %>% 
+  mutate(S_aur_to_S_mad = Catch/C_mad)
+
+avg_dwf_ratio = mean(dwf_both$S_aur_to_S_mad, na.rm = TRUE) # 6.72 - pretty large disparity 
+# The estimate from the FAO Cote d'Ivoir data (for industrial) was 9.68. Averaging this and the above ratio gives a ratio of 8.2 aurita to one unit maderensis
+```
+
+### Using estimate of 8.2 to get an estimate of S. aurita from the Liberia catch time-series data from FAO 
+
+
+```{r}
+catch_ts = read.csv(here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv")) %>% 
+  mutate(Catch = Catch_tonnes*1000) 
+
+catch_disag = catch_ts %>% 
+  mutate(C_aur = case_when(
+    Fleet == "Artisanal" ~ (Catch - (Catch/1.21)),
+    Fleet == "Industrial" ~ (Catch - (Catch/9.2))
+  ))
+
+ts_ssf_aur = catch_disag %>% 
+  filter(Fleet %in% "Artisanal") %>% 
+  select(-c(X, Country, Fleet, Catch_tonnes, Catch)) %>% 
+  mutate(Species = "Sardinella aurita") %>% 
+  relocate(Species, .before = Year) %>% 
+  rename(Catch = C_aur) %>% 
+  mutate(Year= as.numeric(Year)) %>% 
+  rbind(ssf_aurita)
+
+ts_dwf_aur = catch_disag %>% 
+  filter(Fleet %in% "Industrial") %>% 
+  select(-c(X, Country, Fleet, Catch_tonnes, Catch)) %>% 
+  mutate(Species = "Sardinella aurita") %>% 
+  relocate(Species, .before = Year) %>% 
+  rename(Catch = C_aur) %>% 
+  mutate(Year= as.numeric(Year)) %>% 
+  rbind(dwf_aurita)
+
+# Time to visualize this.
+
+ggplot(catch_ts) +
+  geom_line(aes(x=Year, y=Catch, color =Fleet)) +
+  theme_bw() + 
+  labs(x="Year", y = "Catch (kg)")
+
+```
+
+
 ### Using Chris Free's 'datalimited2' package to conduct preliminary DWF stock assessment
 
 ```{r DWF Data Limited Stock assessment, fig.height=6}
@@ -104,30 +206,7 @@ mean_pred <- as.data.frame(Predict[[1]]["Mean_pred"])
 # ?ocom # Could be useful but would need a natural mortality (1/yr are the units)
 ```
 
-## Artisanal Fleet Dataprep
 
-```{r reading in SSF data}
-ssf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Artisanal prod 2018-2023", skip = 3, n_max = 106, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
-  rename(Species = ...1)
-view(ssf_ts)
-```
-
-```{r cleaning SSF data}
-# Tidying the dwf_ts dataframe 
-ssf_aurita <- ssf_ts %>% 
-  filter(Species %in% c("Sardinella aurita")) %>% # Filtering relevant species 
-  select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
-  pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
-  # Pivoting to tidy format
-  mutate(Year=as.numeric(Year))
-
-# Isolating the grand total of S. aurita catch from the 'dwf_ts' dataframe
-grand_total <- ssf_ts[ssf_ts$Species == "Sardinella aurita", c(1,8)]
-
-# Check to ensure that the values present in the time series dataframe match the grand total in the dwf_ts dataframe 
-sum(ssf_aurita$Catch) == grand_total$`Grand Total`
-
-```
 
 ```{r SSF Data Limited Stock assessment}
 # ?cmsy2 # Could be useful to use 
