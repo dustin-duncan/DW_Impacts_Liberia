@@ -1,49 +1,13 @@
 ---
-title: "FishstatJ Data Inspection"
+title: "FAO Sardine Timeseries Data Prep"
 author: "Dustin Duncan"
 format: html
 editor: visual
 ---
 
-```{r}
-library(tidyverse)
-library(here)
-```
+## Extracting catch, effort, and CPUE for sardinella spp. from FAO CECAF Small Pelagics Report
 
-```{r}
-fishstatj <- read.csv(here("Data/Other/FishstatJ_Liberia_capture_production.csv")) %>% 
-  janitor::clean_names()
-unique(fishstatj$fao_division_name)
-fishstatj_tuna <- fishstatj %>% 
-  filter(fao_division_name == "Tunas (CECAF area)")
-
-tuna_l <- fishstatj_tuna %>% 
-  filter(asfis_species_name == "Albacore" | asfis_species_name == "Bigeye tuna" | asfis_species_name == "Bullet tuna" | asfis_species_name == "Frigate and bullet tunas" | asfis_species_name == "Frigate tuna" | asfis_species_name == "Little tunny(=Atl.black skipj)" | asfis_species_name == "Skipjack tuna" | asfis_species_name == "Yellowfin tuna") %>% 
-  pivot_longer(cols = c(x_1970, x_1971,x_1972,x_1973,x_1974,x_1975,x_1976,x_1977,x_1978,x_1979,x_1980,x_1981,x_1982,x_1983,x_1984,x_1985,x_1986,x_1987,x_1988,x_1989,x_1990,x_1991,x_1992,x_1993,x_1994,x_1995,x_1996,x_1997,x_1998,x_1999,x_2000,x_2001,x_2002,x_2003,x_2004,x_2005,x_2006,x_2007,x_2008,x_2009,x_2010,x_2011,x_2012,x_2013,x_2014,x_2015,x_2016,x_2017,x_2018,x_2019,x_2020,x_2021), names_to = "year", values_to = "tons") %>% 
-  select(-c(s, s_1, s_2, s_3, s_4, s_5, s_6, s_7, s_8, s_9, s_10, s_11, s_12, s_13, s_14, s_15, s_16, s_17, s_18, s_19, s_20, s_21, s_22, s_23, s_24, s_25, s_26, s_27, s_28, s_29, s_30, s_31, s_32, s_33, s_34, s_35, s_36, s_37, s_38, s_39, s_40, s_41, s_42, s_43, s_44, s_45, s_46, s_47, s_48, s_49, s_50, s_51))
-
-tuna_l2 <- fishstatj_tuna %>% 
-  filter(asfis_species_name == "Albacore" | asfis_species_name == "Bigeye tuna" | asfis_species_name == "Bullet tuna" | asfis_species_name == "Frigate and bullet tunas" | asfis_species_name == "Frigate tuna" | asfis_species_name == "Little tunny(=Atl.black skipj)" | asfis_species_name == "Skipjack tuna" | asfis_species_name == "Yellowfin tuna") %>% 
-  select(c(asfis_species_name, s, s_1, s_2, s_3, s_4, s_5, s_6, s_7, s_8, s_9, s_10, s_11, s_12, s_13, s_14, s_15, s_16, s_17, s_18, s_19, s_20, s_21, s_22, s_23, s_24, s_25, s_26, s_27, s_28, s_29, s_30, s_31, s_32, s_33, s_34, s_35, s_36, s_37, s_38, s_39, s_40, s_41, s_42, s_43, s_44, s_45, s_46, s_47, s_48, s_49, s_50, s_51)) %>% 
-  pivot_longer(cols = c(-asfis_species_name), names_to = "year_estimate", values_to = "type") %>% 
-  select(type)
-
-tuna_longer <- cbind(tuna_l, tuna_l2) %>% 
-  mutate(year = str_replace_all(year, pattern = "x_", replacement = ""),
-         year = as.integer(year)) %>% 
-  mutate(asfis_species_name = ifelse(asfis_species_name == "Little tunny(=Atl.black skipj)", "Little tunny", asfis_species_name))
-
-unique(tuna_longer$asfis_species_name)
-ggplot(data = tuna_longer, aes(x = year, y = tons, color = asfis_species_name)) + 
-  geom_line()
-```
-
-
-## Extracting catch, effort, and CPUE for sardinella spp. from FAO CECAF Small Pelagics Report 
-
-citation: FAO. 2019. Report of the FAO/CECAF Working Group on the Assessment of Small Pelagic Fish – Subgroup South. Elmina,
-Ghana, 12-20 September 2018. Rapport du Groupe de travail FAO/COPACE sur l’évaluation des petits poissons pélagiques
-– Sous-groupe Sud. Elmina, Ghana, 12-20 septembre 2018. CECAF/ECAF Series / COPACE/PACE Séries No. 19/81. Rome.
+Citation: FAO. 2019. Report of the FAO/CECAF Working Group on the Assessment of Small Pelagic Fish – Subgroup South. Elmina, Ghana, 12-20 September 2018. Rapport du Groupe de travail FAO/COPACE sur l’évaluation des petits poissons pélagiques – Sous-groupe Sud. Elmina, Ghana, 12-20 septembre 2018. CECAF/ECAF Series / COPACE/PACE Séries No. 19/81. Rome.
 
 ```{r}
 # Installing rJava requires you to install or have java on your computer. 
@@ -69,11 +33,12 @@ library(tibble)
 library(purrr)
 library(janitor)
 library(here)
+library(stringr)
 ```
 
-## Getting to it with Catch, effort and CPUE data 
+## Getting to it with Catch, effort and CPUE data
 
-### Defining file path to FAO Report 
+### Defining file path to FAO Report
 
 ```{r}
 ?tabulapdf::extract_tables
@@ -81,7 +46,7 @@ library(here)
 pdf_fp=file.path(here("data_raw/data_FAO/FAO_CECAF_Small_Pelagics_Report_copy.pdf"))
 ```
 
-### Catch
+### Catch for Liberia 
 
 ```{r}
 ## Extracting the tables of catch for Sardinella spp. by country, fleet, and year. This is in list format so we need to create dfs by calling the listed tibbles 
@@ -126,7 +91,9 @@ catch_ts = catch_bound %>%
   mutate(Fleet = case_when(
     Fleet == "FAO/Industrial" ~ "Industrial",
     TRUE ~ Fleet
-  )) %>% 
+  ),
+  Catch_tonnes = str_remove_all(Catch_tonnes, pattern = " "),
+  Catch_tonnes = as.numeric(Catch_tonnes)) %>% 
   as.data.frame()
 
 ## Defining filepath for output and writing csv out.
@@ -135,7 +102,7 @@ catch_ts = catch_bound %>%
 # write.csv(catch_ts, file=fp_out)
 ```
 
-### Effort 
+### Effort for Liberia 
 
 ```{r}
 # Effort is in units of fishing days! per year 
@@ -174,7 +141,10 @@ effort_ts = effort_bound %>%
   mutate(Fleet = case_when(
     Fleet == "FAO/Industrial" ~ "Industrial",
     TRUE ~ Fleet
-  )) %>% 
+  ),
+  Effort = str_remove_all(Effort, pattern = " "),
+  Effort = as.numeric(Effort)
+  ) %>% 
   as.data.frame()
 
 ## Writing out 
@@ -182,8 +152,7 @@ effort_ts = effort_bound %>%
 # write.csv(effort_ts, file = fp_effort_out)
 ```
 
-
-### CPUE 
+### CPUE for Liberia 
 
 ```{r}
 cpue=extract_tables(pdf_fp, pages=c(127,128, 129),output="tibble")
@@ -231,12 +200,109 @@ cpue_bound =cpue1_clean %>%
 cpue_ts = cpue_bound %>% 
   pivot_longer(cols = -c(Country, Fleet),
                names_to = "Year",
-               values_to = "Effort") %>% 
+               values_to = "CPUE") %>% 
+  mutate(Year = as.numeric(Year)) %>% 
   as.data.frame()
 
 
 ## Writing out 
-# fp_cpue_out=file.path(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
-# write.csv(cpue_ts, file = fp_cpue_out)
+fp_cpue_out=file.path(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
+write.csv(cpue_ts, file = fp_cpue_out)
+cpue = read.csv(fp_cpue_out)
 ```
+
+### Catch for Cote d'Ivoir
+
+```{r}
+catch_both_spp=extract_tables(pdf_fp, pages=c(114,115, 116, 117, 118),output="tibble")
+
+catch_aur1=catch_both_spp[[1]]
+catch_aur2=catch_both_spp[[2]]
+catch_aur3=catch_both_spp[[3]]
+catch_mad1=catch_both_spp[[4]]
+catch_mad2=catch_both_spp[[5]]
+
+catch_aur1_clean = catch_aur1 %>% 
+   mutate(Country = str_replace(Country, pattern = "ô", replacement="o"),
+          Country = str_replace(Country, pattern = "ʻ", replacement="'")) %>% 
+  filter(Country %in% "Cote d'Ivoire")
+
+
+catch_aur2_clean = catch_aur2 %>% 
+   mutate(Country = str_replace(Country, pattern = "ô", replacement="o"),
+          Country = str_replace(Country, pattern = "ʻ", replacement="'")) %>%
+  filter(Country %in% "Cote d'Ivoire") %>% 
+  janitor::clean_names() %>% 
+  pivot_longer(cols = -c(country, fleet),
+               names_to = "Year", 
+               values_to = "Catch") %>% 
+  mutate(Year = str_remove_all(Year, pattern="x")) %>% 
+  pivot_wider(names_from = "Year",
+              values_from = "Catch")
+  
+catch_aur3_clean = catch_aur3 %>% 
+   mutate(Country = str_replace(Country, pattern = "ô", replacement="o"),
+          Country = str_replace(Country, pattern = "ʻ", replacement="'")) %>% 
+  filter(Country %in% "Cote d'Ivoire") %>% 
+  rename(country = Country) %>% 
+  rename(fleet = Fleet)
+
+catch_aur_bound = catch_aur1_clean %>% 
+  cbind(catch_aur2_clean) %>% 
+  select(-c(country, fleet)) %>% 
+  cbind(catch_aur3_clean) %>% 
+  select(-c(country, fleet))
+
+catch_aur_ts = catch_aur_bound %>% 
+  pivot_longer(cols = -c(Country, Fleet),
+               names_to = "Year",
+               values_to = "Catch") %>%
+  mutate(Year = as.numeric(Year),
+         Catch = str_remove(Catch, pattern = " "),
+         Catch=as.numeric(Catch)) %>%
+  as.data.frame()
+
+catch_mad1_clean = catch_mad1 %>% 
+  mutate(Country = str_replace(Country, pattern = "ô", replacement="o"),
+          Country = str_replace(Country, pattern = "ʻ", replacement="'")) %>% 
+  filter(Country %in% "Cote d'Ivoire")
+
+catch_mad2_clean = catch_mad2 %>% 
+  mutate(Country = str_replace(Country, pattern = "ô", replacement="o"),
+          Country = str_replace(Country, pattern = "ʻ", replacement="'")) %>% 
+  filter(Country %in% "Cote d'Ivoire") %>% 
+  janitor::clean_names() %>% 
+  pivot_longer(cols = -c(country, fleet),
+               names_to = "Year", 
+               values_to = "Catch") %>% 
+  mutate(Year = str_remove_all(Year, pattern="x")) %>% 
+  pivot_wider(names_from = "Year",
+              values_from = "Catch")
+
+catch_mad_bound = catch_mad1_clean %>% 
+  cbind(catch_mad2_clean) %>% 
+  select(-c(country, fleet))
+
+catch_mad_ts = catch_mad_bound %>% 
+  pivot_longer(cols = -c(Country, Fleet),
+               names_to = "Year",
+               values_to = "Catch") %>%
+  mutate(Year = as.numeric(Year),
+         Catch = str_remove(Catch, pattern = " "),
+         Catch = as.numeric(Catch)) %>% 
+  rename(C_mad = Catch) %>% 
+  as.data.frame()
+
+catch_both_ts = catch_aur_ts %>% 
+  full_join(catch_mad_ts, by=c("Country", "Fleet", "Year")) %>% 
+  mutate(S_aur_to_S_mad = Catch/C_mad) %>% 
+  filter(Year %in% 2003:2017)
+
+avg_dwf_ratio = mean(catch_both_ts$S_aur_to_S_mad, na.rm=TRUE) # 9.68
+  
+  
+```
+
+
+
 
