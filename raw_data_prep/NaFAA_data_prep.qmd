@@ -413,3 +413,21 @@ M2 = Mfunc(Linf=Linf_estimate, K=K_est, Temp=27)
 v2=1-exp(-M2)
 v_est=1-exp(-M_est)
 ```
+
+
+$$
+\mathrm{\frac{dN_{i}}{dt}=S_{i-1}(t)N_{i-1}(t)-A_{i}N_{i}(t)-S_{i}(t)N_{i}(t) \\~ \\
+S_{i-1}(t)=1-[MR_{i}(t)+FR_{i}(t)]} \\ ~\\
+FR_{i}(t)=\frac{Y_{i}(t)}{B_{i}(t)}=q_{i}f(t)~~~~~~~~~~~~~~~~~~~~\text{     }~~~~~~~~~~~~ \\ ~ \\
+
+\mathrm{N_{i}=\text{Number of fish in age class "i"} \\
+S_{i} = \text{Survival rate} \\
+MR_{i}=\text{Natural mortality rate} \\
+FR_{i}=\text{Fishing mortality rate} \\
+A_{i}=\text{Total mortality rate} \\
+}
+
+$$
+
+
+
