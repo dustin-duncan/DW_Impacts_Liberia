@@ -7,6 +7,10 @@ editor: visual
 
 ```{r}
 library(tidyverse)
+library(devtools)
+# install_github("https://github.com/haddonm/MQMF")
+# devtools::install_github("https://github.com/haddonm/MQMF")
+library(MQMF)
 ```
 
 ## Estimating catchability from abundance and cpue data
@@ -95,5 +99,56 @@ effort=139/(q_dwf*b_2010)
 ```
 
 Estimated that by 2017 the stock was 60,000 tonnes, so we can use this with catchability and yield from the following time-series to estimate effort for the years available in the NaFAA data? 
+
+## Looking at whether CPUE and catch are linearly related 
+
+```{r}
+# Artisanal
+cpue_s = cpue %>% 
+  filter(Fleet %in% c("Artisanal")) 
+catch_s = catch %>% 
+  filter(Fleet %in% c("Artisanal")) 
+bound_data_s = cpue_s %>% 
+  full_join(catch_s, by = c("Year", "Fleet", "Country")) %>% 
+  select(-c(X.x, X.y, Country)) %>% 
+  filter(Year > 1997) %>% 
+  mutate(Catch_tonnes = as.numeric(Catch_tonnes)) %>% 
+  janitor::clean_names()
+
+model = lm(bound_data_s$cpue ~ bound_data_s$catch_tonnes)
+summary(model) # Hooray there is a correlation 
+
+cpue_d = cpue %>% 
+  filter(Fleet %in% c("Industrial")) 
+catch_d = catch %>% 
+  filter(Fleet %in% c("Industrial")) 
+bound_data_d = cpue_d %>% 
+  full_join(catch_d, by = c("Year", "Fleet", "Country")) %>% 
+  select(-c(X.x, X.y, Country)) %>% 
+  drop_na() %>% 
+  mutate(Catch_tonnes = as.numeric(Catch_tonnes)) %>% 
+  janitor::clean_names()
+
+model2 = lm(bound_data_d$cpue ~ bound_data_d$catch_tonnes)
+summary(model2) # Hooray there is a correlation (but its positive)
+```
+
+## ASPM Model from "Using R for Modelling and Quantitative Methods in Fisheries "(M. Haddon)
+
+```{r}
+# If we have natural mortality, estimated biomass, and catch, we might be able to model the population and search for the level of fishing mortality that would lead to the catch seen. If this were the case then we could then optimize the age class numbers, and estimate the ability to predict catch from fishing mortality estimates. First we will implement the age structure, and then we will implement catch to see how it works 
+
+# Notes from Anthony, 2019: 
+# Average size of sexual maturity is 20.75cm (males) and 21.76cm (females). Suggests 50% of feamles are mature at 17.50cm, and 16.60cm for males.
+# Juveniles are fish that are smaller than L50, mature fish are between length L50 and Lopt, and mega-spawners are defined as fish that are Lopt plus 10% in size 
+```
+
+
+
+
+
+
+
+
 
 

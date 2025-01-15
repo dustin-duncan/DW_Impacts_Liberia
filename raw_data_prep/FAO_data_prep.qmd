@@ -46,7 +46,7 @@ library(stringr)
 pdf_fp=file.path(here("data_raw/data_FAO/FAO_CECAF_Small_Pelagics_Report_copy.pdf"))
 ```
 
-### Catch for Liberia 
+### Catch for Liberia
 
 ```{r}
 ## Extracting the tables of catch for Sardinella spp. by country, fleet, and year. This is in list format so we need to create dfs by calling the listed tibbles 
@@ -93,16 +93,16 @@ catch_ts = catch_bound %>%
     TRUE ~ Fleet
   ),
   Catch_tonnes = str_remove_all(Catch_tonnes, pattern = " "),
-  Catch_tonnes = as.numeric(Catch_tonnes)) %>% 
-  as.data.frame()
+  Catch_tonnes = as.integer(Catch_tonnes),
+  Year = as.integer(Year)) 
 
-## Defining filepath for output and writing csv out.
+## Writing csv out.
 
-# fp_out = file.path(here("data_int/data_FAO/catch_timeseries_1990_2017.csv"))
-# write.csv(catch_ts, file=fp_out)
+# write_csv(catch_ts, here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv"))
+# test = read.csv(here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv"))
 ```
 
-### Effort for Liberia 
+### Effort for Liberia
 
 ```{r}
 # Effort is in units of fishing days! per year 
@@ -143,16 +143,16 @@ effort_ts = effort_bound %>%
     TRUE ~ Fleet
   ),
   Effort = str_remove_all(Effort, pattern = " "),
-  Effort = as.numeric(Effort)
-  ) %>% 
-  as.data.frame()
+  Effort = as.integer(Effort),
+  Year = as.integer(Year)
+  ) 
 
 ## Writing out 
-# fp_effort_out=file.path(here("data_int/data_FAO/effort_timeseries_1990_2017.csv"))
-# write.csv(effort_ts, file = fp_effort_out)
+# write_csv(effort_ts, here::here("data_int/data_FAO/effort_timeseries_1990_2017.csv"))
+# test=read.csv(here::here("data_int/data_FAO/effort_timeseries_1990_2017.csv"))
 ```
 
-### CPUE for Liberia 
+### CPUE for Liberia
 
 ```{r}
 cpue=extract_tables(pdf_fp, pages=c(127,128, 129),output="tibble")
@@ -201,13 +201,12 @@ cpue_ts = cpue_bound %>%
   pivot_longer(cols = -c(Country, Fleet),
                names_to = "Year",
                values_to = "CPUE") %>% 
-  mutate(Year = as.numeric(Year)) %>% 
-  as.data.frame()
+  mutate(Year = as.integer(Year)) 
 
 
 ## Writing out 
-# fp_cpue_out=file.path(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
-# write.csv(cpue_ts, file = fp_cpue_out)
+# write_csv(cpue_ts, here::here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
+# test = read.csv(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
 ```
 
 ### Catch for Cote d'Ivoir
@@ -301,7 +300,3 @@ avg_dwf_ratio = mean(catch_both_ts$S_aur_to_S_mad, na.rm=TRUE) # 9.68
   
   
 ```
-
-
-
-

@@ -37,23 +37,51 @@ Note: For now, we will only be focusing on the Sardinella *aurita* species, alth
 dwf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Industrial prod 2018-2023", skip = 3, n_max = 76, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
   rename(Species = ...1)
 view(dwf_ts)
+
 ```
 
 ```{r cleaning DWF data}
 # Tidying the dwf_ts dataframe 
 dwf_aurita <- dwf_ts %>% 
-  filter(Species %in% c("Sardinella aurita")) %>% # Filtering relevant species 
+  filter(Species %in% c("Sardinella aurita", "Sardinella")) %>% # Filtering relevant species 
   select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
   pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
   # Pivoting to tidy format
-  mutate(Year=as.numeric(Year))
+  mutate(Year=as.numeric(Year)) # %>% drop_na() # Missing the year 2023. UGH but at least the grand total still matches
+  
 
 # Isolating the grand total of S. aurita catch from the 'dwf_ts' dataframe
-grand_total <- dwf_ts[dwf_ts$Species == "Sardinella aurita", c(1,8)]
+grand_total_df <- as.data.frame(dwf_ts[dwf_ts$Species == c("Sardinella", "Sardinella aurita"), c(1,8)])
 
+grand_total = grand_total_df[1,2] + grand_total_df[2,2]
 # Check to ensure that the values present in the time series dataframe match the grand total in the dwf_ts dataframe 
-sum(dwf_aurita$Catch) == grand_total$`Grand Total`
+sum(dwf_aurita$Catch) == grand_total
+
 ```
+
+Tidying one last bit then writing to csv as most recent timeseries 
+
+```{r}
+# Need: Country Fleet Year Catch_tonnes, then write it out as csv. The other data is aggregated for Sardinella spp. so thats what will be used regardless
+head(dwf_aurita)
+Nafaa_dwf_writeout <- dwf_aurita %>% 
+  mutate(Catch = case_when(
+    is.na(Catch) ~ 0,
+    .default = Catch
+  )) %>% 
+  group_by(Year) %>% 
+  summarise(Catch = sum(Catch)) %>% 
+  mutate(Country = "Liberia",
+         Fleet = "Industrial") %>% 
+  relocate(Country, .before = Year) %>% 
+  relocate(Fleet, .before = Year) %>% 
+  mutate(Catch_tonnes = Catch/1000) %>% 
+  select(-Catch) %>% 
+  mutate(Catch_tonnes = round(Catch_tonnes))
+
+# Going to save this for later writeout once I have bound it with the ssf data 
+```
+
 
 ## Artisanal Fleet Dataprep
 
@@ -64,28 +92,55 @@ view(ssf_ts)
 ```
 
 ```{r cleaning SSF data}
-# Tidying the dwf_ts dataframe 
+# Tidying the ssf_ts dataframe 
 ssf_aurita <- ssf_ts %>% 
-  filter(Species %in% c("Sardinella aurita")) %>% # Filtering relevant species 
+  filter(Species %in% c("Sardinella aurita", "Sardinella maderensis")) %>% # Filtering relevant species 
   select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
   pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
   # Pivoting to tidy format
   mutate(Year=as.numeric(Year))
 
 # Isolating the grand total of S. aurita catch from the 'dwf_ts' dataframe
-grand_total <- ssf_ts[ssf_ts$Species == "Sardinella aurita", c(1,8)]
+grand_total_df <- as.data.frame(ssf_ts[ssf_ts$Species == c("Sardinella aurita","Sardinella maderensis"), c(1,8)])
+
+grand_total = grand_total_df[1,2] + grand_total_df[2,2]
 
 # Check to ensure that the values present in the time series dataframe match the grand total in the dwf_ts dataframe 
-sum(ssf_aurita$Catch) == grand_total$`Grand Total`
+sum(ssf_aurita$Catch) == grand_total
 
 ```
 
+### Writing out the 2018 to 2023 timeseries as csv 
 
-## Combining NaFAA data with catch timeseries from 1990-2017 from FAO. 
+```{r}
+head(ssf_aurita)
+Nafaa_ssf_writeout <- ssf_aurita %>% 
+  group_by(Year) %>% 
+  summarise(Catch = sum(Catch)) %>% 
+  mutate(Country = "Liberia",
+         Fleet = "Artisanal") %>% 
+  relocate(Country, .before = Year) %>% 
+  relocate(Fleet, .before = Year) %>% 
+  mutate(Catch_tonnes = Catch/1000,
+         Catch_tonnes = round(Catch_tonnes)) %>% 
+  select(-Catch)
+
+Nafaa_ag_writeout = Nafaa_dwf_writeout %>% 
+  rbind(Nafaa_ssf_writeout) %>% 
+  mutate(Year = as.integer(Year),
+         Catch_tonnes = as.integer(Catch_tonnes))
+
+# write_csv(Nafaa_ag_writeout, here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
+# test = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
+```
+
+
+
+## Combining NaFAA data with catch timeseries from 1990-2017 from FAO.
 
 Due to the civil war in Liberia occuring from 1989 - 2003 and having a large impact on fisheries activities, I think it would be prudent to use the FAO catch data from after 2003. In addition, the FAO catch data is for Sardinella spp., rather than Sardinella aurita, so I will be using the above data to estimate proportion of Sardinella aurita in catch as compared to Sardinella maderensis, to dis-aggregate the FAO data into S. aurita and S. maderensis.
 
-### Estimating proportion of S. aurita to S. maderensis from NaFAA data. 
+### Estimating proportion of S. aurita to S. maderensis from NaFAA data.
 
 ```{r}
 ssf_both <- ssf_ts %>% 
@@ -116,8 +171,7 @@ avg_dwf_ratio = mean(dwf_both$S_aur_to_S_mad, na.rm = TRUE) # 6.72 - pretty larg
 # The estimate from the FAO Cote d'Ivoir data (for industrial) was 9.68. Averaging this and the above ratio gives a ratio of 8.2 aurita to one unit maderensis
 ```
 
-### Using estimate of 8.2 to get an estimate of S. aurita from the Liberia catch time-series data from FAO 
-
+### Using estimate of 8.2 to get an estimate of S. aurita from the Liberia catch time-series data from FAO
 
 ```{r}
 catch_ts = read.csv(here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv")) %>% 
@@ -155,7 +209,6 @@ ggplot(catch_ts) +
   labs(x="Year", y = "Catch (kg)")
 
 ```
-
 
 ### Using Chris Free's 'datalimited2' package to conduct preliminary DWF stock assessment
 
@@ -205,8 +258,6 @@ mean_pred <- as.data.frame(Predict[[1]]["Mean_pred"])
 # ?zbrt # Could also be useful to use 
 # ?ocom # Could be useful but would need a natural mortality (1/yr are the units)
 ```
-
-
 
 ```{r SSF Data Limited Stock assessment}
 # ?cmsy2 # Could be useful to use 
@@ -295,7 +346,7 @@ $$
 
 $$
 \Pi_{t} = pH_t - cF_t^{\beta}
-$$ 
+$$
 
 ## Ideal profit scenario
 
@@ -303,7 +354,7 @@ $$
 
 $$
 \Pi_{MSY} = p_{MSY}f_t b_t - c(f_t g )^{\beta}
-$$ 
+$$
 
 $$ 
 \text{Biological Model:} \\
@@ -311,8 +362,7 @@ $$
 \mathrm{B_{t+1}^{SSF}= B_{t}^{SSF}+ \frac{\Phi+1}{\Phi}gB_{t}^{SSF}(1-\frac{B_{t}^{SSF}}{K})^\Phi-H_{t}^{SSF}} \\
 \text{Profit Function:} \\
 \mathrm{\Pi_{t}^{DWF}=(1-\alpha)pH_{t}^{DWF}-\frac{cH_{t}^{DWF}}{X_t} }
-$$ 
-$$
+$$ $$
 \mathrm{B_{1,t+1} = D_{1,1}[B_{1,t}+ \frac{\Phi+1}{\Phi}gB_{1,t}(1-\frac{B_{1,t}}{K_{1}})^\Phi-H_{1,t}]  \\ ~~~~~~~~~~~+ D_{2,1}[B_{2,t}+ \frac{\Phi+1}{\Phi}gB_{2,t}(1-\frac{B_{2,t}}{K_{2}})^\Phi-H_{2,t}]}
 $$
 
@@ -414,11 +464,8 @@ v2=1-exp(-M2)
 v_est=1-exp(-M_est)
 ```
 
-
-$$
-\mathrm{\frac{dN_{i}}{dt}=S_{i-1}(t)N_{i-1}(t)-A_{i}N_{i}(t)-S_{i}(t)N_{i}(t) \\~ \\
-S_{i-1}(t)=1-[MR_{i}(t)+FR_{i}(t)]} \\ ~\\
-FR_{i}(t)=\frac{Y_{i}(t)}{B_{i}(t)}=q_{i}f(t)~~~~~~~~~~~~~~~~~~~~\text{     }~~~~~~~~~~~~ \\ ~ \\
+\$\$ \mathrm{\frac{dN_{i}}{dt}=S_{i-1}(t)N_{i-1}(t)-A_{i}N_{i}(t)-S_{i}(t)N_{i}(t) \\~ \\
+S_{i-1}(t)=1-[MR_{i}(t)+FR_{i}(t)]} \\ \~\\ FR\_{i}(t)=\frac{Y_{i}(t)}{B_{i}(t)}=q\_{i}f(t)\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\text{     }\~\~\~\~\~\~\~\~\~\~ \\ \~ \\
 
 \mathrm{N_{i}=\text{Number of fish in age class "i"} \\
 S_{i} = \text{Survival rate} \\
@@ -427,7 +474,4 @@ FR_{i}=\text{Fishing mortality rate} \\
 A_{i}=\text{Total mortality rate} \\
 }
 
-$$
-
-
-
+\$\$
