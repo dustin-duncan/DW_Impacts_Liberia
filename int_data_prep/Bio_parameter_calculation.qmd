@@ -141,6 +141,10 @@ summary(model2) # Hooray there is a correlation (but its positive)
 # Notes from Anthony, 2019: 
 # Average size of sexual maturity is 20.75cm (males) and 21.76cm (females). Suggests 50% of feamles are mature at 17.50cm, and 16.60cm for males.
 # Juveniles are fish that are smaller than L50, mature fish are between length L50 and Lopt, and mega-spawners are defined as fish that are Lopt plus 10% in size 
+# If size can be used as a proxy for age, then it would be easy to classify the years at which certain cohorts should transfer into the above cohort, and use categorical age classes rather than actual age of the fish. 
+# spm() 
+
+# This function makes sense. I would like the output to be at FIRST, just the biological projection. After, I would like it to include the interaction between both catches, with catch being determined by effort and cost per unit effort. This will allow me to calibrate the model on the 1990-2017 data, then I should be able to back out effort from the 2018-2023 data with the information this model gives me. If I can predict effort from catch and consistent CPUE data, then I should be able to estimate effort for the new data and project it going forward under different price regimes. 
 ```
 
 
