@@ -58,16 +58,21 @@ cpue = read.csv(here::here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
 effort = read.csv(here::here("data_int/data_FAO/effort_timeseries_1990_2017.csv"))
 catch = read.csv(here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv"))
 catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
+
 catch_90_23 = catch %>% 
   rbind(catch_nafaa)
+
 catch_effort = catch %>% 
   cbind(effort$Effort) %>% 
   rename(Effort = `effort$Effort`)
+
 catch_nafaa_eff = catch_nafaa %>% 
   mutate(Effort = NA) %>% 
   rbind(catch_effort)
+
 options(scipen=999)
 5115/(158446*60000)
+
 ggplot(cpue, aes(x = Year, y = CPUE, color = Fleet)) + 
   geom_line()
 ggplot(effort, aes(x = Year, y = Effort, color = Fleet)) + 
@@ -105,7 +110,7 @@ c_e_joined = catch_filtered %>%
 q_ssf = c_e_joined[1, 6]
 q_dwf = c_e_joined[2, 6]
 options(scipen=999)
-q_ssf
+q_ssf 
 q_dwf
 
 b_2010=3241/(q_ssf*139987)
@@ -116,8 +121,10 @@ effort=139/(q_dwf*b_2010)
 
 Estimated that by 2017 the stock was 60,000 tonnes, so we can use this with catchability and yield from the following time-series to estimate effort for the years available in the NaFAA data? 
 
-```{r}
-# Loading data from the Flanders Marine Institute (here::here(data_raw/data_FMI))
+```{r Liberia Proportion of Northern Stock, eval=FALSE}
+
+# Loading data from the Flanders Marine Institute from my local machine. Git will not allow files larger than 100.00mB to be pushed to GitHub so I will include instructions for how to download the data below. 
+
 ## Citation: Flanders Marine Institute (2023). Maritime Boundaries Geodatabase: Maritime Boundaries and Exclusive Economic Zones (200NM), version 12. Available online at https://www.marineregions.org/. https://doi.org/10.14284/632
 
 # Reading in EEZ data as spatvector 
@@ -268,7 +275,7 @@ test = length_weight_at_age(maxage=9, Linf=44.46, K1= 0.38, t0=-0.387, Waa=0.02,
   wakg = wa2/1000)
 
 # Biomass in year 2018 est. = 60,000 tonnes. Creating rough estimates of individuals given biomass and Anthony Yukie's paper of catch estimates
-Bi = 60000
+Bi = 60000*0.367
 juv_B = .81*Bi # 48600 tonnes, 0-2 yr old (3 ages)
 juv_ratio = juv_B/3
 ym_B = .13*Bi # 7800 tonnes, 3-4 yr old (2 ages)
@@ -286,7 +293,7 @@ test = test %>%
   Na = kg_ratio/wakg
   )
 
-spawning_biomass = sum(tibble(SB = case_when(test$Age > 2 ~ test$Na*test$wakg))$SB, na.rm = TRUE)
+spawning_biomass = sum(tibble(SB = case_when(test$Age > 2 ~ test$Na*test$wakg*test$prop_mature))$SB, na.rm = TRUE)
 total_biomass = sum(tibble(TB = test$Na*test$wakg)$TB, na.rm=TRUE)
 
 B_total = sum(test$wakg*test$Na)
@@ -375,21 +382,21 @@ B_total = sum(test$wakg*test$Na)
 # plotspmmod()
 
 
-# function (pars, funk, logobs, ...) 
-# {
-#   npar <- length(pars)
-#   logpred <- funk(pars, ...)
-#   pick <- which(is.na(logobs))
-#   if (length(pick) > 0) {
-#     LL <- -sum(dnorm(x = logobs[-pick], mean = logpred[-pick], 
-#       sd = exp(pars[npar]), log = TRUE))
-#   }
-#   else {
-#     LL <- -sum(dnorm(x = logobs, mean = logpred, sd = exp(pars[npar]), 
-#       log = TRUE))
-#   }
-#   return(LL)
-# }
+function (pars, funk, logobs, ...)
+{
+  npar <- length(pars)
+  logpred <- funk(pars, ...)
+  pick <- which(is.na(logobs))
+  if (length(pick) > 0) {
+    LL <- -sum(dnorm(x = logobs[-pick], mean = logpred[-pick],
+      sd = exp(pars[npar]), log = TRUE))
+  }
+  else {
+    LL <- -sum(dnorm(x = logobs, mean = logpred, sd = exp(pars[npar]),
+      log = TRUE))
+  }
+  return(LL)
+}
 
 ```
 
@@ -416,6 +423,7 @@ $$
 - `Waa`, `Wab` = $W_{aa} = 0.02, W_{ab} = 3$ coefficients that define the power relationship between length and mass 
 - `wa` = the mass at age $a$
 - `La` = $L$ the length 
+- **The paper this comes from states that this is in grams** 
 
 
 `wa = Waa*(La^(Wab))`
@@ -423,7 +431,7 @@ $$
 Formula:
 
 $$
-w_{a}=W_{aa}L^{W_{ab}}
+W_{t}=W_{\infty}(1-e^{-K(t-t_{0})})^{W_{ab}}
 $$
 
 **Global Parameters**
@@ -506,10 +514,14 @@ $$
 ```{r}
 # Defining parameters that we will use to calibrate the model 
 
-inparams = c("maxage"=9, "h"=1, "R0"=20, "sela50"=2.5, "deltas"=1, "Winf"=1055, "Wab"=2, "K2"=0.38, "t0"=-0.5, "M"=.81, "q"=5.38e-7, "eff" = 1.58e5, "propJ"=.70, "propY"=0.20, "propO"= 0.10, "Time"=12)
+inparams = c("sela50"=2.5, "deltas"=1, "Winf"=1055, "Wab"=2, "K2"=0.38, "t0"=-0.5, "M"=.81, "q"=5.38e-7, "propJ"=.70, "propY"=0.20, "propO"= 0.10, "Time"=6, "maxage"=9)
 
-inp = c("SB_init"=11400000, "TB_init"=6e7*0.367)
+# Need to recalculate the spawning biomass from the new Total Biomass initial 
+inp = c("SB_init"=2920072, "TB_init"=22020000, "eff" = 1.58e5,"R0"=20, "h"=2, "sd" =0.07)
 
+# inp = c("SB_init"=11400000, "TB_init"=6e7)
+# "TB_init"=6e7*0.367 # Around 22020000
+# "SB_init"=11400000*0.367 # It could be 4183800, or it could be what is calculated above. Above is a conservative estimate 
 aspm = function(inparams, inp, indat=NULL) {
   
   time = inparams[["Time"]]
@@ -520,7 +532,7 @@ aspm = function(inparams, inp, indat=NULL) {
   SB = vector("list",length(inparams[["Time"]]+1))
   TB = vector("list",length(inparams[["Time"]]+1))
   C = vector("list",length(inparams[["Time"]]))
-  Catch_kg = vector("list",length(inparams[["Time"]]))
+  Catch_T = vector("list",length(inparams[["Time"]]))
   
   # Defining age and time vectors which we will sequence over 
   # time=seq(from=1, to=time, by=1)
@@ -544,27 +556,28 @@ aspm = function(inparams, inp, indat=NULL) {
   
     N[[1]] = initial_pop
   EB[[1]] = wa*s*N[[1]]
-  H[[1]] = (inparams[["q"]]*inparams[["eff"]]*EB[[1]])/EB[[1]]
+  H[[1]] = (inparams[["q"]]*inp[["eff"]]*EB[[1]])/EB[[1]]
   C[[1]] = N[[1]]*H[[1]]
-  Catch_kg[[1]]=sum(C[[1]]*wa)
-  SB[[1]]=inp[["SB_init"]]
-  TB[[1]]=inp[["TB_init"]]
+  Catch_T[1]=(sum(C[[1]]*wa))/1000
+  SB[1]=inp[["SB_init"]]
+  TB[1]=inp[["TB_init"]]
   
   for(t in 2:time) {
     N[[t]] = numeric(length(ages))
     EB[[t]] = numeric(length(ages))
     H[[t]] = numeric(length(ages))
     C[[t]] = numeric(length(ages))
-    Catch_kg[[t]] = numeric(length(ages))
+    Catch_T[[t]] = numeric(length(ages))
     
-    N[[t]][1]= (4*h*inparams["R0"]*SB[[t-1]])/((1-h)*inp["TB_init"]) + (5*h-1)*SB[[t-1]]
-    for(a in 2:inparams["maxage"]) {
+    N[[t]][1]= (4*inp[["h"]]*inp[["R0"]]*SB[[t-1]])/(((1-inp[["h"]])*inp["TB_init"]) + (5*inp[["h"]]-1)*SB[[t-1]])
+    
+    for(a in 2:inparams[["maxage"]]) {
       
-      N[[t]][a]=N[[t-1]][a-1]*exp(-inparams["M"]/2)
+      N[[t]][a]=N[[t-1]][a-1]*exp(-inparams[["M"]]/2)
       
       EB[[t]][a] = N[[t]][a]*s[a]*wa[a]
       
-      H[[t]][a] = (inparams["q"]*inparams["eff"]*EB[[t]][a])/EB[[t]][a]
+      H[[t]][a] = (inparams[["q"]]*inp[["eff"]]*EB[[t]][a])/EB[[t]][a]
       
       C[[t]][a] = N[[t]][a]*H[[t]][a]
       
@@ -580,19 +593,87 @@ aspm = function(inparams, inp, indat=NULL) {
       #   N[[t]][a] = (N[[t]][a] - C[[t]][a])*exp(-inparams["M"]/2)
       # }
       
-      N[[t]][a] = (N[[t]][a] - C[[t]][a])*exp(-inparams["M"]/2)
+      N[[t]][a] = (N[[t]][a] - C[[t]][a])*exp(-inparams[["M"]]/2)
     }
     
-    Catch_kg[[t]]=sum(C[[t]]*wa)
-    SB[[t]] = sum(N[[t]][4:10]*wa[4:10])
+    Catch_T[t]=(sum(C[[t]]*wa))/1000
+    SB[t] = sum(N[[t]][4:10]*wa[4:10])
     TB[t] = sum(N[[t]]*wa)
   }
-  # list("Time"=time, "Age"=ages, "Catch" = Catch_kg, "Total Biomass"=TB, "N"=N, "EB"=EB, "Spawning Biomass"=SB)
-  return(Catch_kg)
+  # list("Time"=time, "Age"=ages, "Catch" = Catch_T, "Total Biomass"=TB, "N"=N, "EB"=EB, "Spawning Biomass"=SB)
+  return(Catch_T)
   }
 
 test_aspm = aspm(inparams=inparams, inp = inp)
 test_aspm # Need method to estimate the first year's catch. Because its null so far, but might be able to just define it?
+Catch_T
+ 
+catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv")) %>% 
+  group_by(Year) %>% 
+  summarize(Catch_tonnes = sum(Catch_tonnes)) %>% 
+  rename(year = Year,
+         catch = Catch_tonnes) %>% 
+  mutate(year = seq(from=1, to= inparams[["Time"]], by =1))
+
+simpspm() 
+
+negLL = function (pars, funk, logobs, ...) {
+  npar <- length(inp)
+  logpred <- funk(pars, ...)
+  logpred = sapply(1:6, function(i) logpred[[i]][1])
+  pick <- which(is.na(logobs))
+  if (length(pick) > 0) {
+    LL <- -sum(dnorm(x = logobs[-pick], mean = logpred[-pick], 
+      sd = exp(pars[npar]), log = TRUE))
+  }
+  else {
+    LL <- -sum(dnorm(x = logobs, mean = logpred, sd = exp(inp[npar]), 
+      log = TRUE))
+  }
+  return(LL)
+}
+
+negLL(pars=log(inp), funk=aspm, logobs=log(catch_nafaa[, "catch"]$catch), indat=catch_nafaa, inparams=inparams)
+
+# logobs=log(catch_nafaa[, "catch"]$catch)
+# 
+# logpred = aspm(inparams=inparams,inp=log(inp))
+# logpred <- sapply(1:6, function(i) logpred[[i]][1])
+# # logpred <- tibble(catch = catch_values)
+# npar <- length(inp)
+# negLL(inp, aspm, log(catch_nafaa[, "catch"]$catch))
+# LL <- -sum(dnorm(x = logobs, mean = logpred, sd = exp(inp["sd"]), 
+#       log = TRUE))
+# LL
+
+scalepar=magnitude(inp)
+bestL <- optim(inp,negLL,method="Nelder-Mead",
+               funk=aspm,
+               logobs=log(catch_nafaa[, "catch"]$catch),
+               indat=catch_nafaa, inparams=inparams,
+               control=list(maxit=1000,parscale=scalepar))
+bestL$par
+bestL$value
+bestL$counts
+bestL$convergence
+bestL$message
+
+inp2 = c("SB_init"=3423086, "TB_init"=20348032, "eff" = 1.58e3,"R0"=13.7, "h"=0.8, "sd" =0.07)
+bestL1 <- optim(inp2,negLL,method="Nelder-Mead",
+               funk=aspm,
+               logobs=log(catch_nafaa[, "catch"]$catch),
+               indat=catch_nafaa, inparams=inparams,
+               control=list(maxit=1000,parscale=scalepar))
+bestL1$par
+bestL1$value
+bestL1$counts
+bestL1$convergence
+bestL1$message
+
+test_inp2 = aspm(inparams=inparams, inp=inp2)
+test_inp2
+catch_nafaa[, "catch"]$catch
+# I left off attempting to calibrate the model by minimizing the negative log-likelihood of the predicted catch values matching the observed catch values. I had to modify the negLL function to be my own, because it didnt have the correct format for the output of my function. Right now im looking at potential parameter values and convergence is not great. The best I have currently found are stored in the "bestL1" object but when I use these to run the `aspm` function they do not quite make sense. Going to see if I can replicate results from the book chapter based off of his parameters provided I can find them... this is a lot
 ```
 
 
