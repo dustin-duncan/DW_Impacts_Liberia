@@ -569,7 +569,7 @@ aspm = function(inparams, inp, indat=NULL) {
     C[[t]] = numeric(length(ages))
     Catch_T[[t]] = numeric(length(ages))
     
-    N[[t]][1]= (4*inp[["h"]]*inp[["R0"]]*SB[[t-1]])/(((1-inp[["h"]])*inp["TB_init"]) + (5*inp[["h"]]-1)*SB[[t-1]])
+    N[[t]][1]= (4*inp[["h"]]*inp[["R0"]]*SB[[t-1]])/(((1-inp[["h"]])*inp[["TB_init"]]) + (5*inp[["h"]]-1)*SB[[t-1]])
     
     for(a in 2:inparams[["maxage"]]) {
       
@@ -617,7 +617,7 @@ catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_202
 
 simpspm() 
 
-negLL = function (pars, funk, logobs, ...) {
+negLL1 = function (pars, funk, logobs, ...) {
   npar <- length(inp)
   logpred <- funk(pars, ...)
   logpred = sapply(1:6, function(i) logpred[[i]][1])
@@ -633,7 +633,7 @@ negLL = function (pars, funk, logobs, ...) {
   return(LL)
 }
 
-negLL(pars=log(inp), funk=aspm, logobs=log(catch_nafaa[, "catch"]$catch), indat=catch_nafaa, inparams=inparams)
+negLL1(pars=log(inp), funk=aspm, logobs=log(catch_nafaa[, "catch"]$catch), indat=catch_nafaa, inparams=inparams)
 
 # logobs=log(catch_nafaa[, "catch"]$catch)
 # 
@@ -641,13 +641,13 @@ negLL(pars=log(inp), funk=aspm, logobs=log(catch_nafaa[, "catch"]$catch), indat=
 # logpred <- sapply(1:6, function(i) logpred[[i]][1])
 # # logpred <- tibble(catch = catch_values)
 # npar <- length(inp)
-# negLL(inp, aspm, log(catch_nafaa[, "catch"]$catch))
+# negLL1(inp, aspm, log(catch_nafaa[, "catch"]$catch))
 # LL <- -sum(dnorm(x = logobs, mean = logpred, sd = exp(inp["sd"]), 
 #       log = TRUE))
 # LL
 
 scalepar=magnitude(inp)
-bestL <- optim(inp,negLL,method="Nelder-Mead",
+bestL <- optim(inp,negLL1,method="Nelder-Mead",
                funk=aspm,
                logobs=log(catch_nafaa[, "catch"]$catch),
                indat=catch_nafaa, inparams=inparams,
@@ -659,7 +659,7 @@ bestL$convergence
 bestL$message
 
 inp2 = c("SB_init"=3423086, "TB_init"=20348032, "eff" = 1.58e3,"R0"=13.7, "h"=0.8, "sd" =0.07)
-bestL1 <- optim(inp2,negLL,method="Nelder-Mead",
+bestL1 <- optim(inp2,negLL1,method="Nelder-Mead",
                funk=aspm,
                logobs=log(catch_nafaa[, "catch"]$catch),
                indat=catch_nafaa, inparams=inparams,
@@ -673,12 +673,290 @@ bestL1$message
 test_inp2 = aspm(inparams=inparams, inp=inp2)
 test_inp2
 catch_nafaa[, "catch"]$catch
+
 # I left off attempting to calibrate the model by minimizing the negative log-likelihood of the predicted catch values matching the observed catch values. I had to modify the negLL function to be my own, because it didnt have the correct format for the output of my function. Right now im looking at potential parameter values and convergence is not great. The best I have currently found are stored in the "bestL1" object but when I use these to run the `aspm` function they do not quite make sense. Going to see if I can replicate results from the book chapter based off of his parameters provided I can find them... this is a lot
 ```
 
+```{r NegLL with hard parameters}
+
+# Ones taken out... "sela50"=2.5, "deltas"=1, "Winf"=1055, "Wab"=2, "K2"=0.38, "t0"=-0.5, "M"=.81, "Time"=6, "maxage"=9,  "h"=2, "eff" = 1.58e5,
+# inparams = c("q"=5.38e-7, "propJ"=.70, "propY"=0.20, "propO"= 0.10)
+
+# Need to recalculate the spawning biomass from the new Total Biomass initial 
+inp = c("SB_init"=2920072, "TB_init"=22020000, "R0"=20,"q"=5.38e-7, "eff" = 1.58e5, "propJ"=.70, "propY"=0.20, "propO"= 0.10, "sd" =0.07)
+
+# inp = c("SB_init"=11400000, "TB_init"=6e7)
+# "TB_init"=6e7*0.367 # Around 22020000
+# "SB_init"=11400000*0.367 # It could be 4183800, or it could be what is calculated above. Above is a conservative estimate 
+
+aspm = function(inparams=NULL, inp, indat=NULL, maxtime) {
+  
+  
+  time = maxtime
+  
+  N = vector("list",length(time))
+  EB = vector("list",length(time))
+  H = vector("list",length(time+1))
+  SB = vector("list",length(time+1))
+  TB = vector("list",length(time+1))
+  C = vector("list",length(time))
+  Catch_T = vector("list",length(time))
+  Eff = vector("list", length(time))
+  
+  # Defining age and time vectors which we will sequence over 
+  # time=seq(from=1, to=time, by=1)
+  ages=seq(from=0, to=9, by=1)
+  
+  initial_pop = c(
+    (inp[["propJ"]]*inp[["TB_init"]]/3)*exp(-0.81),
+    (inp[["propJ"]]*inp[["TB_init"]]/3)*exp(-0.81),
+    (inp[["propJ"]]*inp[["TB_init"]]/3)*exp(-0.81),
+    (inp[["propY"]]*inp[["TB_init"]]/2)*exp(-0.81),
+    (inp[["propY"]]*inp[["TB_init"]]/2)*exp(-0.81),
+    (inp[["propO"]]*inp[["TB_init"]]/5)*exp(-0.81),
+    (inp[["propO"]]*inp[["TB_init"]]/5)*exp(-0.81),
+    (inp[["propO"]]*inp[["TB_init"]]/5)*exp(-0.81),
+    (inp[["propO"]]*inp[["TB_init"]]/5)*exp(-0.81),
+    ((inp[["propO"]]*inp[["TB_init"]]/5)*exp(-0.81))/(1-exp(-0.81)))
+  
+  s = 1/(1+exp((2.5-ages)/1))
+  
+  wa = (1055*(1-exp(-0.38*(ages-(-0.5))))^2)/1000
+  
+  
+    N[[1]] = initial_pop
+  EB[[1]] = wa*s*N[[1]]
+  H[[1]] = (inp[["q"]]*inp[["eff"]]*EB[[1]])/EB[[1]]
+  C[[1]] = N[[1]]*H[[1]]
+  Catch_T[1]=(sum(C[[1]]*wa))/1000
+  SB[1]=inp[["SB_init"]]
+  TB[1]=inp[["TB_init"]]
+  Eff[1]= 1.58e5
+  
+  for(t in 2:time) {
+    N[[t]] = numeric(length(ages))
+    EB[[t]] = numeric(length(ages))
+    H[[t]] = numeric(length(ages))
+    C[[t]] = numeric(length(ages))
+    Catch_T[[t]] = numeric(length(ages))
+    Eff[[t]] = numeric(length(ages))
+    
+    N[[t]][1]= (4*0.8*inp[["R0"]]*SB[[t-1]])/(((1-0.8)*inp[["TB_init"]]) + (5*0.8-1)*SB[[t-1]])
+    
+    for(a in 2:10) {
+      if(a %in% 2:9) {
+      N[[t]][a]=N[[t-1]][a-1]*exp(-.81/2)
+      } else if(a == 10) {
+        N[[t]][a] = (N[[t-1]][a-1] + N[[t-1]][a])*exp(-0.81/2)
+      }
+      EB[[t]][a] = N[[t]][a]*s[a]*wa[a]
+      
+      H[[t]][a] = (inp[["q"]]*inp[["eff"]]*EB[[t]][a])/EB[[t]][a]
+      
+      C[[t]][a] = N[[t]][a]*H[[t]][a]
+      
+      # if(C[[t]][a] >= N[[t]][a]) {
+      #   cat(
+      #     "Error: Catch greater than available number", "\n",
+      #     "EB = ", EB[[t]][a], "\n",
+      #     "Harvest = ", H[[t]][a], "\n",
+      #     "Catch = ", C[[t]][a], "\n",
+      #     "Number at age", a, N[[t]][a], "\n"
+      #   )
+      # } else {
+      #   N[[t]][a] = (N[[t]][a] - C[[t]][a])*exp(-inp["M"]/2)
+      # }
+      
+      N[[t]][a] = (N[[t]][a] - C[[t]][a])*exp(-.81/2)
+    }
+    
+    Catch_T[t]=(sum(C[[t]]*wa))/1000
+    SB[t] = sum(N[[t]][4:10]*wa[4:10])
+    TB[t] = sum(N[[t]]*wa)
+  }
+  # list("Time"=time, "Age"=ages, "Catch" = Catch_T, "Total Biomass"=TB, "N"=N, "EB"=EB, "Spawning Biomass"=SB)
+  return(Catch_T)
+  }
+
+test_aspm = aspm(inparams= inparams, inp = inp, maxtime=6)
+test_aspm # Need method to estimate the first year's catch. Because its null so far, but might be able to just define it?
+Catch_T
+ 
+catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv")) %>% 
+  group_by(Year) %>% 
+  summarize(Catch_tonnes = sum(Catch_tonnes)) %>% 
+  rename(year = Year,
+         catch = Catch_tonnes) %>% 
+  mutate(year = seq(from=1, to= inparams[["Time"]], by =1))
 
 
+negLL1(pars=log(inp), funk=aspm, logobs=log(catch_nafaa[, "catch"]$catch), indat=catch_nafaa, inparams=inparams, maxtime=nrow(catch_nafaa))
 
+# logobs=log(catch_nafaa[, "catch"]$catch)
+# 
+# logpred = aspm(inparams=inparams,inp=log(inp))
+# logpred <- sapply(1:6, function(i) logpred[[i]][1])
+# # logpred <- tibble(catch = catch_values)
+# npar <- length(inp)
+# negLL1(inp, aspm, log(catch_nafaa[, "catch"]$catch))
+# LL <- -sum(dnorm(x = logobs, mean = logpred, sd = exp(inp["sd"]), 
+#       log = TRUE))
+# LL
+
+inpL= log(inp)
+scalepar=magnitude(inpL)
+
+# These are best parameter estimates used from minimizing the negative log-likelihood... Next is going to use sobol sensitivity analysis -
+bestL2 <- optim(inpL,negLL1,method="Nelder-Mead",
+               funk=aspm,
+               logobs=log(catch_nafaa[, "catch"]$catch),
+               indat=catch_nafaa, inparams=inparams, maxtime=6,
+               control=list(maxit=1000,parscale=scalepar))
+bestL2$par
+bestL2$value
+bestL2$counts
+bestL2$convergence
+bestL2$message
+
+```
+
+### Sobol sensitivity analysis
+
+```{r Sobol Sensitivity Analysis}
+library(sensitivity)
+
+inp = c("h"=0.8,"R0"=20, "q"=5.38e-7, "eff"= 1.58e5, "sd" =0.07)
+
+# inp = c("SB_init"=11400000, "TB_init"=6e7)
+# "TB_init"=6e7*0.367 # Around 22020000
+# "SB_init"=11400000*0.367 # It could be 4183800, or it could be what is calculated above. Above is a conservative estimate 
+aspm_sens = function(inparams=NULL, inp, indat=NULL, maxtime, propJ, propY, propO, SB_init, TB_init) {
+  
+  
+  time = maxtime
+  
+  N = vector("list",length(time))
+  EB = vector("list",length(time))
+  H = vector("list",length(time+1))
+  SB = vector("list",length(time+1))
+  TB = vector("list",length(time+1))
+  C = vector("list",length(time))
+  Catch_T = vector("list",length(time))
+  # Eff = vector("list", length(time))
+  
+  # Defining age and time vectors which we will sequence over 
+  # time=seq(from=1, to=time, by=1)
+  ages=seq(from=0, to=9, by=1)
+  
+  initial_pop = c(
+    (propJ*TB_init/3)*exp(-0.81),
+    (propJ*TB_init/3)*exp(-0.81),
+    (propJ*TB_init/3)*exp(-0.81),
+    (propY*TB_init/2)*exp(-0.81),
+    (propY*TB_init/2)*exp(-0.81),
+    (propO*TB_init/5)*exp(-0.81),
+    (propO*TB_init/5)*exp(-0.81),
+    (propO*TB_init/5)*exp(-0.81),
+    (propO*TB_init/5)*exp(-0.81),
+    ((propO*TB_init/5)*exp(-0.81))/(1-exp(-0.81)))
+  
+  s = 1/(1+exp((2.5-ages)/1))
+  
+  wa = (1055*(1-exp(-0.38*(ages-(-0.5))))^2)/1000
+  
+  
+    N[[1]] = initial_pop
+  EB[[1]] = wa*s*N[[1]]
+  H[[1]] = (inp[["q"]]*inp[["eff"]]*EB[[1]])/EB[[1]]
+  C[[1]] = N[[1]]*H[[1]]
+  Catch_T[1]=(sum(C[[1]]*wa))/1000
+  SB[1]=SB_init
+  TB[1]=TB_init
+  # Eff[1]= 1.58e5
+  a=(4*inp[["h"]]*inp[["R0"]])/((5*inp[["h"]])-1)
+  b= (TB_init*(1-inp[["h"]]))/((5*inp[["h"]])-1)
+  
+  for(t in 2:time) {
+    N[[t]] = numeric(length(ages))
+    EB[[t]] = numeric(length(ages))
+    H[[t]] = numeric(length(ages))
+    C[[t]] = numeric(length(ages))
+    Catch_T[[t]] = numeric(length(ages))
+    # Eff[[t]] = numeric(length(ages))
+    
+    N[[t]][1]= ((4*0.8*inp[["R0"]]*SB[[t-1]])/(((1-0.8)*SB_init) + (5*0.8-1)*SB[[t-1]]))/0.002698416
+    # N[[t]][1] = (a*SB[[t-1]])/(b+SB[[t-1]])
+    
+    for(a in 2:10) {
+      if(a %in% 2:9) {
+      N[[t]][a]=N[[t-1]][a-1]*exp(-.81/2)
+      } else if(a == 10) {
+        N[[t]][a] = (N[[t-1]][a-1] + N[[t-1]][a])*exp(-0.81/2)
+      }
+      EB[[t]][a] = N[[t]][a]*s[a]*wa[a]
+      
+      H[[t]][a] = (inp[["q"]]*inp[["eff"]]*EB[[t]][a])/EB[[t]][a]
+      
+      C[[t]][a] = N[[t]][a]*s[a]*H[[t]][a]
+      
+      # if(C[[t]][a] >= N[[t]][a]) {
+      #   cat(
+      #     "Error: Catch greater than available number", "\n",
+      #     "EB = ", EB[[t]][a], "\n",
+      #     "Harvest = ", H[[t]][a], "\n",
+      #     "Catch = ", C[[t]][a], "\n",
+      #     "Number at age", a, N[[t]][a], "\n"
+      #   )
+      # } else {
+      #   N[[t]][a] = (N[[t]][a] - C[[t]][a])*exp(-inp["M"]/2)
+      # }
+      
+      N[[t]][a] = (N[[t]][a] - C[[t]][a])*exp(-.81/2)
+    }
+    
+    Catch_T[t]=(sum(C[[t]]*wa))/1000
+    SB[t] = sum(N[[t]][4:10]*wa[4:10])
+    TB[t] = sum(N[[t]]*wa)
+  }
+  # return(list("Time"=time, "Age"=ages, "Catch" = Catch_T, "Total Biomass"=TB, "N"=N, "EB"=EB, "Spawning Biomass"=SB))
+  return(Catch_T)
+  }
+
+test_aspm = aspm_sens(inparams= inparams, inp = inp, maxtime=6, propJ=.60, propY=0.25, propO= 0.15, SB_init=2920072, TB_init=22020000)
+test_aspm
+
+
+catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv")) %>% 
+  filter(Fleet %in% c("Artisanal")) %>% 
+  group_by(Year) %>% 
+  summarize(Catch_tonnes = sum(Catch_tonnes)) %>% 
+  rename(year = Year,
+         catch = Catch_tonnes) %>% 
+  mutate(year = seq(from=1, to= inparams[["Time"]], by =1))
+
+negLL1(pars=log(inp), funk=aspm_sens, logobs=log(catch_nafaa[, "catch"]$catch), indat=catch_nafaa, inparams=inparams, maxtime=nrow(catch_nafaa), propJ=.60, propY=0.25, propO= 0.15, SB_init=2920072, TB_init=22020000)
+
+inpL= log(inp)
+scalepar=magnitude(inpL)
+
+# These are best parameter estimates used from minimizing the negative log-likelihood... Next is going to use sobol sensitivity analysis -
+bestL3 <- optim(inpL,negLL1,method="Nelder-Mead",
+               funk=aspm_sens,
+               logobs=log(catch_nafaa[, "catch"]$catch),
+               indat=catch_nafaa, inparams=inparams, maxtime=nrow(catch_nafaa),
+               propJ=.60, propY=0.25, propO= 0.15, 
+               SB_init=2920072, 
+               TB_init=22020000,
+               control=list(maxit=1000,parscale=scalepar))
+
+exp(bestL3$par)
+bestL3$value
+bestL3$counts
+bestL3$convergence
+bestL3$message
+
+
+```
 
 
 

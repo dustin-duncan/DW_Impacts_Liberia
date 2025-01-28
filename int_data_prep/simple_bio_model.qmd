@@ -1,0 +1,98 @@
+---
+title: "SPM_bio_model"
+author: "Dustin Duncan"
+format: html
+editor: visual
+---
+
+```{r}
+# rm(list=ls())
+library(tidyverse)
+library(devtools)
+# install_github("https://github.com/haddonm/MQMF")
+# devtools::install_github("https://github.com/haddonm/MQMF")
+library(MQMF)
+# library(terra)
+# library(tidyterra)
+# library(sf)
+library(datalimited2)
+```
+
+
+```{r}
+cpue = read.csv(here::here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
+effort = read.csv(here::here("data_int/data_FAO/effort_timeseries_1990_2017.csv"))
+catch = read.csv(here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv"))
+catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
+all_metrics = read.csv(here::here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
+```
+
+
+## Using SPM function to develop harvest function 
+
+```{r}
+spmdata = all_metrics %>% 
+  group_by(Year) %>% 
+  summarize(catch = sum(Catch_tonnes, na.rm = TRUE),
+    effort = sum(Effort, na.rm=TRUE)) %>% 
+  mutate(cpue = catch/effort) %>%
+  rename(year = Year) %>% 
+  mutate(year = as.numeric(year),
+         catch = as.numeric(catch),
+         effort = as.numeric(effort)) %>% 
+  filter(!effort == 0) %>% 
+  filter(year > 2007) %>% 
+  ungroup() %>% 
+  as.data.frame()
+
+new_data = catch_nafaa %>% 
+  group_by(Year) %>% 
+  summarize(catch = sum(Catch_tonnes, na.rm=TRUE)) %>% 
+  rename(year = Year) %>% 
+  ungroup()
+
+cpue_info_test = lm(spmdata$cpue ~ spmdata$catch)
+summary(cpue_info_test)
+
+# Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
+100000*0.367
+100000*0.6*0.367
+inp=log(c(r=0.451, K=33274, Binit=16910, 0.01))
+test = plotspmmod(inp, spmdata)
+bestSP = fitSPM(pars=inp, fish=spmdata,funk=simpspm, steptol=1e-05)
+outfit(bestSP)
+bestSP$estimate
+boots <- spmboot(bestSP$estimate, fishery=spmdata,iter=1000,schaefer=TRUE)
+dynam <- boots$dynam
+bootpar <- boots$bootpar
+ 
+options(scipen=999)
+exp(bestSP$estimate)
+ans <- plotspmmod(bestSP$estimate,spmdata,schaefer=TRUE)
+str(ans)
+
+negLL(pars=inp, funk=simpspm, logobs = log(dataspm[, "cpue"]), indat=dataspm)
+?spm()
+scalepar=magnitude(inp)
+bestL <- optim(inp,negLL,method="Nelder-Mead",
+               funk=simpspm,
+               indat=spmdata,
+               logobs = log(dataspm[, "cpue"]),
+               control=list(maxit=1000,parscale=scalepar))
+exp(bestL$par)
+bestL$value
+bestL$counts
+bestL$convergence
+bestL$message
+```
+
+## Using datalimited2 package 
+
+```{r}
+library(datalimited2)
+bsm_out = datalimited2::bsm(year=spmdata$year, catch=spmdata$catch, biomass=spmdata$cpue, btype="CPUE", r.low=0.35, r.hi=0.55, stb.low=0.4, stb.hi=0.7)
+plot_dlm(bsm_out)
+ref_pts = bsm_out[["ref_pts"]]
+ref_ts = bsm_out[["ref_ts"]]
+```
+

@@ -209,6 +209,65 @@ cpue_ts = cpue_bound %>%
 # test = read.csv(here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
 ```
 
+# Combining them into one dataframe that I can write out as all_metrics_timseries_97_17.csv
+
+```{r}
+## Aggregating catch metrics for Industrial fleets 
+view(cpue_ts)
+view(effort_ts)
+view(catch_ts)
+catch_dwf = catch_ts %>% 
+  filter(Fleet %in% "Industrial") %>% 
+  dplyr::arrange(., Year)
+cpue_dwf = cpue_ts %>% 
+  filter(Fleet %in% "Industrial") %>% 
+  dplyr::arrange(., Year)
+effort_dwf = effort_ts %>% 
+  filter(Fleet %in% "Industrial") %>% 
+  dplyr::arrange(., Year)
+# Completing with cbind
+ag_dwf = catch_dwf %>% 
+  cbind(effort_dwf$Effort) %>% 
+  cbind(cpue_dwf$CPUE) %>% 
+  rename(Effort = `effort_dwf$Effort`) %>% 
+  rename(CPUE = `cpue_dwf$CPUE`) 
+# %>%
+#   mutate(Test = Catch_tonnes/Effort) # Used this to check to make sure the values were correct
+## Aggregating catch metrics for Artisanal fleets 
+view(cpue_ts)
+view(effort_ts)
+view(catch_ts)
+catch_ssf = catch_ts %>% 
+  filter(Fleet %in% "Artisanal") %>% 
+  dplyr::arrange(., Year)
+cpue_ssf = cpue_ts %>% 
+  filter(Fleet %in% "Artisanal") %>% 
+  dplyr::arrange(., Year)
+effort_ssf = effort_ts %>% 
+  filter(Fleet %in% "Artisanal") %>% 
+  dplyr::arrange(., Year)
+# Completing with cbind
+ag_ssf = catch_ssf %>% 
+  cbind(effort_ssf$Effort) %>% 
+  cbind(cpue_ssf$CPUE) %>% 
+  rename(Effort = `effort_ssf$Effort`) %>% 
+  rename(CPUE = `cpue_ssf$CPUE`) 
+# %>%
+#   mutate(Test = Catch_tonnes/Effort) # Used this to check to make sure the values were correct 
+
+ag_both_fleets = ag_ssf %>% 
+  rbind(ag_dwf) %>% 
+  ungroup()
+
+
+## Writing out 
+# write_csv(ag_both_fleets, here::here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
+# test = read.csv(here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
+```
+
+
+
+
 ### Catch for Cote d'Ivoir
 
 ```{r}
