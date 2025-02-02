@@ -275,12 +275,12 @@ test = length_weight_at_age(maxage=9, Linf=44.46, K1= 0.38, t0=-0.387, Waa=0.02,
   wakg = wa2/1000)
 
 # Biomass in year 2018 est. = 60,000 tonnes. Creating rough estimates of individuals given biomass and Anthony Yukie's paper of catch estimates
-Bi = 60000*0.367
-juv_B = .81*Bi # 48600 tonnes, 0-2 yr old (3 ages)
+Bi = 16126
+juv_B = .65*Bi # 48600 tonnes, 0-2 yr old (3 ages)
 juv_ratio = juv_B/3
-ym_B = .13*Bi # 7800 tonnes, 3-4 yr old (2 ages)
+ym_B = .20*Bi # 7800 tonnes, 3-4 yr old (2 ages)
 ym_ratio = ym_B/2
-om_B = .06*Bi # 3600 tonnes, 5+ yr old (5 ages)
+om_B = .15*Bi # 3600 tonnes, 5+ yr old (5 ages)
 om_ratio = om_B/5 
 
 test = test %>% 
@@ -292,7 +292,8 @@ test = test %>%
   kg_ratio = Tonnes_ratio*1000,
   Na = kg_ratio/wakg
   )
-
+test2 = test %>% filter(Age %in% 1:2) %>% summarize(mean_kg = mean(wakg))
+test3 = test %>% filter(Age %in% 3:9) %>% summarize(mean_kg = mean(wakg))
 spawning_biomass = sum(tibble(SB = case_when(test$Age > 2 ~ test$Na*test$wakg*test$prop_mature))$SB, na.rm = TRUE)
 total_biomass = sum(tibble(TB = test$Na*test$wakg)$TB, na.rm=TRUE)
 

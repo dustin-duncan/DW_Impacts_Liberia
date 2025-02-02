@@ -16,6 +16,7 @@ library(MQMF)
 # library(tidyterra)
 # library(sf)
 library(datalimited2)
+library(nloptr)
 ```
 
 
@@ -27,6 +28,16 @@ catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_202
 all_metrics = read.csv(here::here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
 ```
 
+## Quick Plots 
+
+```{r}
+ggplot(all_metrics, aes(x = Year, y=CPUE, color=Fleet)) + 
+  geom_line()
+ggplot(all_metrics, aes(x = Year, y=Effort, color=Fleet)) + 
+  geom_line()
+ggplot(all_metrics, aes(x = Year, y=Catch_tonnes, color=Fleet)) + 
+  geom_line()
+```
 
 ## Using SPM function to develop harvest function 
 
@@ -57,33 +68,22 @@ summary(cpue_info_test)
 # Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
 100000*0.367
 100000*0.6*0.367
-inp=log(c(r=0.451, K=33274, Binit=16910, 0.01))
+inp=log(c(r=0.451, K=57000, Binit=16910, 0.01))
 test = plotspmmod(inp, spmdata)
-bestSP = fitSPM(pars=inp, fish=spmdata,funk=simpspm, steptol=1e-05)
-outfit(bestSP)
-bestSP$estimate
-boots <- spmboot(bestSP$estimate, fishery=spmdata,iter=1000,schaefer=TRUE)
-dynam <- boots$dynam
-bootpar <- boots$bootpar
- 
-options(scipen=999)
-exp(bestSP$estimate)
-ans <- plotspmmod(bestSP$estimate,spmdata,schaefer=TRUE)
-str(ans)
+class(spmdata)
+param=log(c(0.451, 57000, 16910, 0.03))
+pnames=c("r", "K", "Binit", "sigma")
+best <- optim(par=param, fn=negLL, funk=simpspm, indat=spmdata,
+              logobs=log(spmdata[, "cpue"]),
+              method="BFGS")
+outfit(best, digits=4, title="Optim", parnames=pnames)
+cat("\n")
+best2 <- nlm(negLL, best$par, funk=simpspm, indat=spmdata,
+             logobs=log(spmdata[, "cpue"]))
+outfit(best2, digits=4, title="nlm", parnames=pnames)
 
-negLL(pars=inp, funk=simpspm, logobs = log(dataspm[, "cpue"]), indat=dataspm)
-?spm()
-scalepar=magnitude(inp)
-bestL <- optim(inp,negLL,method="Nelder-Mead",
-               funk=simpspm,
-               indat=spmdata,
-               logobs = log(dataspm[, "cpue"]),
-               control=list(maxit=1000,parscale=scalepar))
-exp(bestL$par)
-bestL$value
-bestL$counts
-bestL$convergence
-bestL$message
+ans <- plotspmmod(inp=best2$estimate, indat = spmdata, addrmse=TRUE, plotprod=TRUE)
+str(ans$Dynamics, width=65, strict.width="cut",max.level=1)
 ```
 
 ## Using datalimited2 package 
@@ -95,4 +95,471 @@ plot_dlm(bsm_out)
 ref_pts = bsm_out[["ref_pts"]]
 ref_ts = bsm_out[["ref_ts"]]
 ```
+
+## Need interaction. How to? Start with basics 
+
+```{r}
+lm_dat <- all_metrics %>% 
+  pivot_wider(names_from = Fleet, values_from=c(Catch_tonnes, CPUE, Effort),
+              names_glue = "{.value}_{Fleet}")
+lm_dat <- lm_dat %>% 
+  mutate(indCAlag = lag(Catch_tonnes_Industrial),
+         indCElag = lag(CPUE_Industrial),
+         indElag = lag(Effort_Industrial))
+?pivot_wider
+
+formula1 <- (log(lm_dat$Catch_tonnes_Artisanal) ~ log(lm_dat$Catch_tonnes_Industrial) + log(lm_dat$CPUE_Industrial) + log(lm_dat$Effort_Industrial))
+
+formula_lag <- (Catch_tonnes_Artisanal ~ indCAlag + indCElag + indElag)
+
+log_lag <- (log(Catch_tonnes_Artisanal) ~ log(indCAlag) + log(indCElag) + log(indElag))
+
+interaction <- lm(formula1, data=lm_dat)
+interaction_lag <- lm(formula_lag, data=lm_dat)
+interaction_log_lag <- lm(log_lag, data=lm_dat)
+
+summary(interaction_lag)
+summary(interaction_log_lag)
+summary(interaction)
+par(mfrow=c(2,2))
+plot(interaction)
+plot(interaction_log_lag)
+```
+
+## Writing function... going to take this from our mini GP because thats where its at now...
+
+$\gamma$ = quanitfy spawning proportional to adult stock
+
+$v$ = recruitment to adult stock proportional to juvenile stock
+
+$\eta$ = the competition mortality of the juvenile, proportional to the square of the juvenile stock 
+
+Note: Industrial fleet not allowed to operate within zone 2 and 3 
+
+Cost per unit effort supposed to increase from shore to offshore (c1 > c2 > c3)
+
+Adult biomass $B(t)$ and juvenile biomass $B_{j}(t)$
+
+$$
+\frac{dB_{1}}{d \tau} = (\frac{a}{K_{2}}B_{2}-\frac{a}{K_{1}}B_{1}) + \epsilon[-m_{1}B_{1}-\frac{q_{1,S}B_{1}e_{1}}{S_{1}}-\frac{q_{1,D}B_{1}E}{S_{1}}]
+$$
+`B1[t]=(((a/K2)*B2[t-1])-((a/K1)*B1[t-1]))+(epsilon*((-M1*B1[t-1])-((q1*B1[t-1]*e1[t-1])/S1)-((q1*B1[t-1]*E[t-1])/S1)))`
+
+$$
+\frac{dB_{2}}{d \tau} = (\frac{a}{K_{1}}B_{1}-\frac{a}{K_{2}}B_{2}) + \epsilon[-m_{2}B_{2}-\frac{q_{2}B_{2}e_{2}}{S_{2}}+ vB_{j}]
+$$
+
+$$
+\frac{dB_{3}}{d \tau} = \epsilon[\gamma(B_{1}+B_{2})-\frac{q_{3}B_{3}e_{3}}{S_{3}}-vB_{3}-\mu B_{3} - \eta B_{3}^{2}] 
+$$
+
+$$ 
+\frac{de_{1}}{d \tau} = (\frac{bS_{2}}{B_{2}}e_{2}-\frac{bS_{1}}{B_{1}}e_{1}) + \epsilon\frac{\phi}{c_{1}}[-c_{1}e_{1}+\frac{pq_{1}B_{1}e_{1}}{S_{1}}]
+$$
+$$ 
+\frac{de_{2}}{d \tau} = (\frac{bS_{1}}{B_{1}}e_{1}+\frac{bS_{3}}{B_{3}}e_{3}-\frac{2bS_{2}}{B_{2}}e_{2}) + \epsilon\frac{\phi}{c_{2}}[-c_{2}e_{2}+\frac{pq_{2}B_{2}e_{2}}{S_{2}}]
+$$
+
+$$ 
+\frac{de_{3}}{d \tau} = (\frac{bS_{2}}{B_{2}}e_{2}-\frac{bS_{3}}{B_{3}}e_{3}) + \epsilon\frac{\phi}{c_{3}}[-c_{3}e_{3}+\frac{pq_{3}B_{3}e_{3}}{S_{3}}]
+$$
+
+$$ 
+\frac{dE}{d \tau} = \epsilon\frac{\phi}{C}[-CE+\frac{pq_{1}B_{1}E}{S_{1}}]
+$$
+HS[t] = ((q1S*B1[t]*e1[t])) + ((q2*B2[t]*e2[t])) + ((q3*B3[t]*e3[t]))
+    
+    HD[t] = (q1D*B1[t]*E[t])
+$$
+HS_{z,t}= q_{z}B_{z,t}e_{z,t} 
+$$
+
+$$
+HD_{t} = q_{1,D}B_{1,t}E_{t}
+$$
+
+
+## New Interaction function
+
+```{r}
+mean_effort = all_metrics %>% filter(Fleet %in% "Artisanal") %>% filter(Year > 2003) %>% summarize(mean_eff = mean(Effort, na.rm=TRUE))
+
+eff_initial = mean_effort$mean_eff
+
+# These came from bio_parameter_calculation script
+# q_dwf = 0.00000269
+# q_ssf = 0.000000443
+# Parameters: S1=244800; S2=6800; S3=680; K1=10000; K2=10000; K3=20000; a=1; gamma=10; v=20; M1=0.4; M2=0.4; eta=0.13; mu=0.4; b=1; q1D=0.00000269; q1S=0.000000269; q2=0.000000443; q3=0.000000443; C1=0.060; C2=0.045; C3=0.040; C=0.045; W=0.75; fee=0.1; epsilon=1/365; omega=1; p=500; discount=0.05
+
+# In the paper: S1=87000; S2=1200; S3=100; K1=50000; K2=50000; K3=500; a=1; gamma=10; v=20; M1=0.1; M2=0.1; eta=0.013; mu=0.4; b=1; q1D=0.5; q1S=0.5; q2=0.5; q3=0.9; C1=300; C2=200; C3=100; C=300; W=0.75; fee=0.1; epsilon=1/365; omega=1; p=500; discount=0.05
+
+interaction_fx = function(fee, time, S1, S2, S3, K1, K2, K3, a, gamma, v, M1, M2, eta, mu, b, q1D, q1S, q2, q3, C1, C2, C3, C, W, epsilon, omega, p, discount) { 
+  
+  B1=vector(mode="numeric", length=0)
+  B2=vector(mode="numeric", length=0)
+  B3=vector(mode="numeric", length=0)
+  e1=vector(mode="numeric", length=0)
+  e2=vector(mode="numeric", length=0)
+  e3=vector(mode="numeric", length=0)
+  E=vector(mode="numeric", length=0)
+  HS=vector(mode="numeric", length=0)
+  HD=vector(mode="numeric", length=0)
+  benefits=vector(mode="numeric", length=0)
+  
+  B1[1] = 2418
+  B2[1] = 3225
+  B3[1] = 10481
+  e1[1] = 102410*0.33
+  e2[1] = 102410*0.33
+  e3[1] = 102410*0.34
+  E[1] = 258
+  HS[1] = ((q1S*B1[1]*e1[1])/S1) + ((q2*B2[1]*e2[1])/S2) + ((q3*B3[1]*e3[1])/S3)
+  HD[1] = (q1D*B1[1]*E[1])/S1
+  benefits[1] = (W)*(1-fee)*HS[1] + (1-W)*(fee)*HD[1]
+  
+  for(t in 2:time) {
+    B1[t]=(((a/K2)*B2[t-1])-((a/K1)*B1[t-1]))+(epsilon*((-M1*B1[t-1])-((q1S*B1[t-1]*e1[t-1])/S1)-((q1D*B1[t-1]*E[t-1])/S1)))
+    
+    B2[t]=(((a/K1)*B1[t-1])-((a/K2)*B2[t-1]))+(epsilon*((-M2*B2[t-1])-((q2*B2[t-1]*e2[t-1])/S2)+v*B3[t-1]))
+    
+    B3[t]=epsilon*((gamma*(B1[t-1]+B2[t-1]))-((q3*B3[t-1]*e3[t-1])/S3)-(v*B3[t-1])-(mu*B3[t-1])-(eta*(B3[t-1]^2)))
+    
+    e1[t]= ((((b*S2)/B2[t-1])*e2[t-1]) - (((b*S1)/B1[t-1])*e1[t-1])) + epsilon*(omega/C1)*((-C1*e1[t-1])+((p*q1S*B1[t-1]*e1[t-1])/S1)) 
+    
+    e2[t]= ((((b*S1)/B1[t-1])*e1[t-1]) + (((b*S3)/B3[t-1])*e3[t-1]) - (((2*b*S2)/B2[t-1])*e2[t-1])) + epsilon*(omega/C2)*((-C2*e2[t-1])+((p*q2*B2[t-1]*e2[t-1])/S2))
+    
+    e3[t]= ((((b*S2)/B2[t-1])*e2[t-1]) - (((b*S3)/B3[t-1])*e3[t-1])) + epsilon*(omega/C3)*((-C3*e3[t-1])+((p*q3*B3[t-1]*e3[t-1])/S3))
+    
+    E[t]=epsilon*(omega/C)*((-C*E[t-1])+((fee*p*q1D*B1[t-1]*E[t-1])/S1))
+    
+    HS[t] = ((q1S*B1[t]*e1[t])) + ((q2*B2[t]*e2[t])) + ((q3*B3[t]*e3[t]))
+    
+    HD[t] = (q1D*B1[t]*E[t])
+    
+    benefits[t] = (W)*(p*HS[t]) + (1-W)*fee*HD[t]
+  }
+  
+  t=seq(from=1, to =time, by=1)
+  rho = 1/(1+discount)
+  pv = rho^t*benefits
+  npv=sum(pv)
+  return(-npv)
+}
+
+constraint_fx = function(fee, time, S1, S2, S3, K1, K2, K3, a, gamma, v, M1, M2, eta, mu, b, q1D, q1S, q2, q3, C1, C2, C3, C, W, epsilon, omega, p, discount) {
+  
+  B1=vector(mode="numeric", length=0)
+  B2=vector(mode="numeric", length=0)
+  B3=vector(mode="numeric", length=0)
+  e1=vector(mode="numeric", length=0)
+  e2=vector(mode="numeric", length=0)
+  e3=vector(mode="numeric", length=0)
+  E=vector(mode="numeric", length=0)
+  HS=vector(mode="numeric", length=0)
+  HD=vector(mode="numeric", length=0)
+  const=vector(mode="numeric", length=0)
+  
+  B1[1] = 2418
+  B2[1] = 3225
+  B3[1] = 10481
+  e1[1] = 102410*0.15
+  e2[1] = 102410*0.25
+  e3[1] = 102410*0.60
+  E[1] = 258
+  HS[1] = ((q1S*B1[1]*e1[1])/S1) + ((q2*B2[1]*e2[1])/S2) + ((q3*B3[1]*e3[1])/S3)
+  HD[1] = (q1D*B1[1]*E[1])/S1
+  
+  
+  const[1]=(HS[1] + HD[1]) - (B1[1]+B2[1]+B3[1])
+  
+  for(t in 1:time) {
+    B1[t]=(((a/K2)*B2[t-1])-((a/K1)*B1[t-1]))+(epsilon*((-M1*B1[t-1])-((q1S*B1[t-1]*e1[t-1])/S1)-((q1D*B1[t-1]*E[t-1])/S1)))
+    
+    B2[t]=(((a/K1)*B1[t-1])-((a/K2)*B2[t-1]))+(epsilon*((-M2*B2[t-1])-((q2*B2[t-1]*e2[t-1])/S2)+v*B3[t-1]))
+    
+    B3[t]=epsilon*((gamma*(B1[t-1]+B2[t-1]))-((q3*B3[t-1]*e3[t-1])/S3)-(v*B3[t-1])-(mu*B3[t-1])-(eta*(B3[t-1]^2)))
+    
+    e1[t]= ((((b*S2)/B2[t-1])*e2[t-1]) - (((b*S1)/B1[t-1])*e1[t-1])) + epsilon*(omega/C1)*((-C1*e1[t-1])+((p*q1S*B1[t-1]*e1[t-1])/S1)) 
+    
+    e2[t]= ((((b*S1)/B1[t-1])*e1[t-1]) + (((b*S3)/B3[t-1])*e3[t-1]) - (((2*b*S2)/B2[t-1])*e2[t-1])) + epsilon*(omega/C2)*((-C2*e2[t-1])+((p*q2*B2[t-1]*e2[t-1])/S2))
+    
+    e3[t]= ((((b*S2)/B2[t-1])*e2[t-1]) - (((b*S3)/B3[t-1])*e3[t-1])) + epsilon*(omega/C3)*((-C3*e3[t-1])+((p*q3*B3[t-1]*e3[t-1])/S3))
+    
+    E[t]=epsilon*(omega/C)*((-C*E[t-1])+((fee*p*q1D*B1[t-1]*E[t-1])/S1))
+    
+    HS[t] = ((q1S*B1[t]*e1[t])) + ((q2*B2[t]*e2[t])) + ((q3*B3[t]*e3[t]))
+    
+    HD[t] = (q1D*B1[t]*E[t])
+    
+    const[t]=(HS[t]+HD[t])-(B1[t]+B2[t]+B3[t])
+  }
+  return(const)
+}
+
+local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
+options=list("algorithm"="NLOPT_LN_AUGLAG",xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
+
+benefits_out=nloptr(x0=0.4,
+                    eval_f = interaction_fx,
+                    opts = options,
+                    lb = 0,
+                    ub = 1,
+                    eval_g_ineq=constraint_fx,
+                    time=6, 
+                    S1=87000, S2=1200, S3=100, K1=50000, K2=50000, K3=500, a=1, gamma=10, v=20, M1=0.1, M2=0.1, eta=0.013, mu=0.4, b=1, q1D=0.5, q1S=0.5, q2=0.5, q3=0.9, C1=300, C2=200, C3=100, C=300, W=0.75, epsilon=1/365, omega=1, p=500, discount=0.05
+                    )
+
+benefits_out$solution
+-benefits_out$objective
+
+# both fleets net benefits = revenue of fishing - cost of fishing 
+# both fleets constrained in that their catch cannot exceed the biomass available to them 
+
+# Net benefit function for dwf 
+
+# Net benefit function for ssf,
+
+# NPV profit function assumptions
+# Both fleets subject to linearly increasing costs with increasing effort 
+  # Independent of (fee)
+# Both fleets face local market price 
+
+# NPV = W*(1-fee)*profitSSF + (1-W)*fee*HDWF
+```
+
+
+```{r}
+interaction_table_fx = function(fee, time, S1, S2, S3, K1, K2, K3, a, gamma, v, M1, M2, eta, mu, b, q1D, q1S, q2, q3, C1, C2, C3, C, W, epsilon, omega, p, discount) { 
+  
+  B1=vector(mode="numeric", length=0)
+  B2=vector(mode="numeric", length=0)
+  B3=vector(mode="numeric", length=0)
+  e1=vector(mode="numeric", length=0)
+  e2=vector(mode="numeric", length=0)
+  e3=vector(mode="numeric", length=0)
+  E=vector(mode="numeric", length=0)
+  HS=vector(mode="numeric", length=0)
+  HD=vector(mode="numeric", length=0)
+  benefits=vector(mode="numeric", length=0)
+  
+  B1[1] = 2418
+  B2[1] = 3225
+  B3[1] = 10481
+  e1[1] = 102410*0.33
+  e2[1] = 102410*0.33
+  e3[1] = 102410*0.34
+  E[1] = 258
+  HS[1] = ((q1S*B1[1]*e1[1])/S1) + ((q2*B2[1]*e2[1])/S2) + ((q3*B3[1]*e3[1])/S3)
+  HD[1] = (q1D*B1[1]*E[1])/S1
+  benefits[1] = (W)*(1-fee)*HS[1] + (1-W)*(fee)*HD[1]
+  
+  for(t in 2:time) {
+    B1[t]=(((a/K2)*B2[t-1])-((a/K1)*B1[t-1]))+(epsilon*((-M1*B1[t-1])-((q1S*B1[t-1]*e1[t-1])/S1)-((q1D*B1[t-1]*E[t-1])/S1)))
+    
+    B2[t]=(((a/K1)*B1[t-1])-((a/K2)*B2[t-1]))+(epsilon*((-M2*B2[t-1])-((q2*B2[t-1]*e2[t-1])/S2)+v*B3[t-1]))
+    
+    B3[t]=epsilon*((gamma*(B1[t-1]+B2[t-1]))-((q3*B3[t-1]*e3[t-1])/S3)-(v*B3[t-1])-(mu*B3[t-1])-(eta*(B3[t-1]^2)))
+    
+    e1[t]= ((((b*S2)/B2[t-1])*e2[t-1]) - (((b*S1)/B1[t-1])*e1[t-1])) + epsilon*(omega/C1)*((-C1*e1[t-1])+((p*q1S*B1[t-1]*e1[t-1])/S1)) 
+    
+    e2[t]= ((((b*S1)/B1[t-1])*e1[t-1]) + (((b*S3)/B3[t-1])*e3[t-1]) - (((2*b*S2)/B2[t-1])*e2[t-1])) + epsilon*(omega/C2)*((-C2*e2[t-1])+((p*q2*B2[t-1]*e2[t-1])/S2))
+    
+    e3[t]= ((((b*S2)/B2[t-1])*e2[t-1]) - (((b*S3)/B3[t-1])*e3[t-1])) + epsilon*(omega/C3)*((-C3*e3[t-1])+((p*q3*B3[t-1]*e3[t-1])/S3))
+    
+    E[t]=epsilon*(omega/C)*((-C*E[t-1])+((fee*p*q1D*B1[t-1]*E[t-1])/S1))
+    
+    HS[t] = ((q1S*B1[t]*e1[t])) + ((q2*B2[t]*e2[t])) + ((q3*B3[t]*e3[t]))
+    
+    HD[t] = (q1D*B1[t]*E[t])
+    
+    benefits[t] = (W)*(p*HS[t]) + (1-W)*fee*HD[t]
+  }
+  
+  t=seq(from=1, to =time, by=1)
+  rho = 1/(1+discount)
+  pv = rho^t*benefits
+  
+  return(tibble("B1"= B1, "B2" = B2, "B3"=B3, "e1"=e1, "e2"=e2, "e3"=e3, "E"=E, "HS"=HS, "HD"=HD, "Benny"=benefits, "PV"=pv))
+}
+
+table = interaction_table_fx(fee = benefits_out$solution, time=6, 
+                    S1=244800, S2=6800, S3=680, 
+                    K1=10000, K2=10000, K3=20000, 
+                    M1=0.4, M2=0.4, mu=0.3,
+                    a=1, gamma=10, v=20, 
+                    eta=0.13, b=1, 
+                    q1D=0.6/1000, q1S=0.03/1000, q2=0.03/1000, q3=0.03/1000, 
+                    C1=0.060, C2=0.045, C3=0.040, C=0.045, 
+                    W=0.75, epsilon=1/365, omega=1, p=1.3, discount=0.05)
+view(table)
+
+```
+
+
+$$
+\begin{align}
+\epsilon &= \text{Difference in time-scale between} \\ 
+        &~~~~~\text{fast and slow processes}
+\end{align}
+$$
+$$
+\begin{align}
+&\text{Environmental Parameters} \\
+K_{z} &= \text{Fish carrying capacity in zone z } \mathrm{(tons)} \\
+S_{z} &= \text{Surface of fish habitat in zone z } \mathrm{(km^{2})} \\ ~ \\
+&\text{Biological Parameters} \\ 
+a &= \text{Fish migration rate } \mathrm{(tons~km^{-2}~day^{-1})}  \\
+\gamma &= \text{Annual production of juveniles as proportion } \\
+&~~~~~~\text{of adult stock biomass } \\ 
+m_{1,2} &= \text{Zone natural mortality rate } \mathrm{(year^{-1})} \\ 
+v &= \text{Proportion of juvenile biomass that} \\
+&~~~~~~\text{recruits each year } \mathrm{(year^{-1})} \\
+\mu &= \text{Fish migration rate } \mathrm{(tons~km^{-2}~day^{-1})} \\
+\eta &= \text{Annual competition mortality rate for juveniles } \\  &~~~~~~\mathrm{(tons^{-1}year^{-1})} \\ ~ \\
+&\text{Economic Parameters} \\
+q_{z} &= \text{Catchability coefficient in zone z }  \\ 
+&~~~~~\mathrm{(no~ dimension)} \\
+b &= \text{Boat migration rate between zones } \\ &~~~~~\mathrm{(tons~km^{-2}~day^{-1})} \\
+\phi &= \text{Rate of reinvesting in fisheries } \\
+&~~~~~\mathrm{(dimensionless)} \\
+p &= \text{Fish price } \mathrm{(USD~ton^{-1})} \\
+c_{z} &= \text{Cost for SSF effort in zone z} \\
+C &= \text{Cost for DWF effort in zone 1}
+\end{align}
+$$
+
+$$
+b = \text{Boat migration rate between zones } \mathrm{(tons/km^{2}/day)} \\ 
+\phi = \text{Rate of reinvesting in fisheries } \mathrm{(dimensionless)} 
+$$
+
+## ODE Solver to test the method 
+
+```{r}
+
+# S1, S2, S3, K1, K2, K3, a, gamma, v, M1, M2, eta, mu, b, q1D, q1S, q2, q3, C1, C2, C3, C, W, epsilon, omega, p, discount
+state = c(B1 = 2418, B2 = 3225, B3 = 10481, e1 = 8000, e2 = 12000, e3 = 1000, E = 10000)
+times=seq(1, 365, by= 1)
+# parameters = c(S1=87000, S2=1200, S3=100, K1=50000, K2=50000, K3=500, a=1, gamma=10, v=20, M1=0.1, M2=0.1, eta=0.013, mu=0.4, b=1, q1D=0.5, q1S=0.5, q2=0.5, q3=0.9, C1=300, C2=200, C3=100, C=300, W=0.75, fee=0.1, epsilon=1/365, omega=1, p=500, discount=0.05)
+
+parameters = c(S1=244800, S2=6800, S3=680, K1=10000, K2=10000, K3=2000, a=1, gamma=10, v=20, M1=0.4, M2=0.4, eta=0.013, mu=0.4, b=1, q1D=0.00000269, q1S=0.000000269, q2=0.000000443, q3=0.000000443, C1=0.060, C2=0.045, C3=0.040, C=0.045, W=0.75, epsilon=1/365, omega=1, p=500, discount=0.05)
+
+
+interaction_ode = function(choice, time, state, parameters, ...) {
+  
+  np <- length(parameters)
+  choice = parameters[np+1]
+  
+  with(as.list(c(state, parameters)), {
+  
+    dB1 <- (((a/K2)*B2)-((a/K1)*B1))+(epsilon*((-M1*B1)-((q1S*B1*e1)/S1)-((q1D*B1*E)/S1)))
+    
+    dB2 <- (((a/K1)*B1)-((a/K2)*B2))+(epsilon*((-M2*B2)-((q2*B2*e2)/S2)+v*B3))
+    
+    dB3 <- epsilon*((gamma*(B1+B2))-((q3*B3*e3)/S3)-(v*B3)-(mu*B3)-(eta*(B3^2)))
+    
+    de1 <-  ((((b*S2)/B2)*e2) - (((b*S1)/B1)*e1)) + epsilon*(omega/C1)*((-C1*e1)+((p*q1S*B1*e1)/S1)) 
+    
+    de2 <-  ((((b*S1)/B1)*e1) + (((b*S3)/B3)*e3) - (((2*b*S2)/B2)*e2)) + epsilon*(omega/C2)*((-C2*e2)+((p*q2*B2*e2)/S2))
+    
+    de3 <-  ((((b*S2)/B2)*e2) - (((b*S3)/B3)*e3)) + epsilon*(omega/C3)*((-C3*e3)+((p*q3*B3*e3)/S3))
+    
+    dE <- epsilon*(omega/C)*((-C*E)+((choice*p*q1D*B1*E)/S1))
+    
+    # HS[t] = ((q1S*B1[t]*e1[t])) + ((q2*B2[t]*e2[t])) + ((q3*B3[t]*e3[t]))
+    # 
+    # HD[t] = (q1D*B1[t]*E[t])
+    # 
+    # benefits[t] = (W)*(p*HS[t]) + (1-W)*choice*HD[t]
+  list(c(dB1, dB2, dB3, de1, de2, de3, dE))
+  })
+}
+choice=0.1
+library(deSolve)
+out=vector(mode="list", length=0)
+# test = interaction_ode(time = times, state=state, parameters = parameters)
+out[1] = ode(y = state, times = times, func = interaction_ode, parms=parameters, choice=choice)
+instate=state
+instate
+out[2, 2:8]
+
+
+ode_fx = function(choice, parameters, funk, instate, years, time) {
+  
+  out=vector(mode="list", length=0)
+  state=vector(mode="list", length=0)
+  HD=vector(mode="numeric", length=0)
+  HS=vector(mode="numeric", length=0)
+  
+  ## issue arising here with the 'y' value. Ode object is being overridden by index
+  state[1] = instate
+  out[1] = ode(y = state, times = time, func = funk, parms=parameters, choice=choice)
+  for(y in 2:years) {
+    state[y] = out[y-1][365, 2:8]
+   out[y] <- ode(y = state[y], times = times, func = interaction_ode, parms=parameters, choice= choice) 
+   
+   HS[y] = ((parameters["q1S"]*out[y, 2]*out[y, 5])) + ((parameters["q2"]*out[y, 3]*out[y, 6])) + ((parameters["q3"]*out[y, 4]*out[y, 7]))
+   HD[y] = (parameters["q1D"]*out[y, 2]*out[y, 8])
+   
+   PiD[y] = (1-choice)*p*HD[y] - parameters["C"]*out[y, 8]
+   PiS[y] = p*HS[y] - ((parameters["c1"]*out[y, 5]) + (parameters["c2"]*out[y, 6]) + (parameters["c3"]*out[y, 7]))
+   benefits[y] = (W*PiS[y])+((1-W)*choice*p*HD[y])
+  }
+  t = seq(from=1, to =years, by=1)
+  rho = 1/(1+parameters["discount"])
+  pv=benefits*(rho^t)
+  npv=sum(pv)
+  return(-npv)
+  
+}
+
+local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
+options=list("algorithm"="NLOPT_LN_AUGLAG",xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
+
+benefits_out=nloptr(x0=0.4,
+                    eval_f = ode_fx,
+                    opts = options,
+                    lb = 0,
+                    ub = 1,
+                    years=6, 
+                    parameters = parameters,
+                    instate=state, 
+                    funk=interaction_ode,
+                    time=times
+                    )
+
+
+# out_df = as.data.frame(out)
+test = out[2, 2:8]
+
+
+
+out_long_B = out_df %>% 
+  select(B1, B2, B3, time) %>% 
+  pivot_longer(cols = c(B1, B2, B3), names_to = "Zone_B", values_to = "Biomass") %>% 
+  mutate(Zone = case_when(
+    Zone_B == "B1" ~ 1,
+    Zone_B == "B2" ~ 2,
+    Zone_B == "B3" ~ 3,
+  ))
+out_long_e = out_df %>% 
+  select(e1, e2, e3, E, time) %>% 
+  pivot_longer(cols = c(e1, e2, e3, E), names_to = "Zone_eff", values_to = "Effort") %>% 
+  mutate(Zone = case_when(
+    Zone_eff == "e1" ~ 1,
+    Zone_eff == "e2" ~ 2,
+    Zone_eff == "e3" ~ 3,
+    Zone_eff == "E" ~ 1,
+  )) %>%  
+  left_join(out_long_B, by = c("time", "Zone")) %>% 
+  mutate(Zone = as.factor(Zone))
+
+ggplot() + 
+  geom_line(data = out_long_e, aes(x = time, y = Biomass, color = Zone_B)) + 
+  geom_line(data = out_long_e, aes(x = time, y = Effort, color = Zone_eff)) + 
+  facet_wrap(~Zone)
+
+```
+
+
 
