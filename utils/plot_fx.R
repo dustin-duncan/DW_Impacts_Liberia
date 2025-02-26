@@ -1,0 +1,56 @@
+ddplot = function(df, bmsy=FALSE) {
+  if(!require("tidyverse")) {
+    install.packages(tidyverse)
+    library(tidyverse)
+  }
+  if(!require("gridExtra")) {
+    install.packages(gridExtra)
+    library(gridExtra)
+  }
+  dfB = df %>% 
+    select(-c(e1, e2, e3, E, HD, HS, PV)) %>% 
+    pivot_longer(cols=c(-time), names_to="Bzone", values_to="Biomass") 
+  plotB <- ggplot(dfB) +
+    geom_line(aes(x = time, y = Biomass, color=Bzone)) + 
+    labs(x = "Time", y = "Biomass", color = "Zone")+ 
+    theme_bw()
+  
+  dfBmsy = dfB %>% 
+    group_by(time) %>% 
+    summarize(Btot = sum(Biomass, na.rm=TRUE)) %>% 
+    mutate(Bbmsy = Btot/16459.968) # Biomass over Biomass at MSY
+  plotBmsy <- ggplot(dfBmsy) +
+    geom_line(aes(x = time, y = Bbmsy)) + 
+    geom_abline(aes(intercept=1, slope = 0)) + 
+    labs(x = "Time", y = "B/BMSY") +
+    theme_bw()
+  
+  dfE = df %>% 
+    select(-c(B1, B2, B3, HD, HS, PV)) %>% 
+    pivot_longer(cols=c(-time), names_to="Ezone", values_to="Effort") 
+  plotE <- ggplot(dfE) +
+    geom_line(aes(x = time, y = Effort, color=Ezone))+ 
+    labs(x = "Time", y = "Effort", color = "Fleet")+ 
+    theme_bw()
+  dfH = df %>% 
+    select(-c(B1, B2, B3, e1, e2, e3, E, PV)) %>% 
+    pivot_longer(cols=c(-time), names_to="Fleet", values_to="Harvest")
+  plotH <- ggplot(dfH) +
+    geom_line(aes(x = time, y = Harvest, color=Fleet)) + 
+    labs(x = "Time", y = "Harvest", color = "Fleet")+ 
+    theme_bw()
+  plotP <- ggplot(df) + 
+    geom_line(aes(x = time, y = PV)) + 
+    labs(x = "Time", y = "Present Value of Harvest") +
+    theme_bw() 
+  
+  plot <- grid.arrange(plotB, plotE, plotH, plotP, ncol=2)
+  plot2 <- grid.arrange(plotB, plotE, plotH, plotP, ncol=2)
+  if(bmsy == FALSE) {
+    return(plot)
+  } else {
+    return(plotBmsy)
+  }
+  
+  
+}

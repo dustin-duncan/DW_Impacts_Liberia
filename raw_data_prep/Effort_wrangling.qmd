@@ -5,7 +5,7 @@ format: html
 editor: visual
 ---
 
-## This script is dedicated to viewing the effort data for Liberia 
+## This script is dedicated to viewing the effort data for Liberia
 
 Citation: Rousseau, Y., Blanchard, J. L., Novaglio, C., Pinnell, K. A., Tittensor, D. P., Watson, R. A., & Ye, Y. (2024). A database of mapped global fishing activity 1950–2017. Scientific Data, 11(1), 48.
 
@@ -18,7 +18,6 @@ library(tidyverse)
 effort_mapped = read_csv(("../../mapped_430.csv"))
 all_metrics = read.csv(here::here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
 ```
-
 
 ```{r}
 ## Looking at different fish groups present in the dataframe 
@@ -44,7 +43,9 @@ unique(effort_gear_filt$Sector)
 # tidying to obtain total effort by fleet by year 
 
 eff_tidy = effort_gear_filt %>% 
-  group_by(Year, Gear, Sector) %>% 
+  group_by(Year, 
+           # Gear, 
+           Sector) %>% 
   summarize(Efforteff = sum(EffActive, na.rm=TRUE),
             Effortnom = sum(NomActive, na.rm=TRUE)) 
 
@@ -68,7 +69,7 @@ ggplot(data = eff_bound, aes(x = Year, y = Effortnom, color = Sector) ) +
   facet_wrap(~Sector, scales = "free")
 ```
 
-## Looking at just days at sea so that I can compare to the FAO data's effort 
+## Looking at just days at sea so that I can compare to the FAO data's effort
 
 ```{r}
 effort_days = effort_filt %>% 
@@ -85,7 +86,9 @@ range(effort_gear_filt$P)
 # tidying to obtain total effort by fleet by year 
 
 eff_tidy = effort_gear_filt %>% 
-  group_by(Year, Gear, Sector) %>% 
+  group_by(Year, 
+           Gear,
+           Sector) %>% 
   summarize(Effortday = sum(effdays, na.rm=TRUE),
             Effortnom = sum(NomActive, na.rm=TRUE)) 
 
@@ -110,7 +113,7 @@ ggplot(data = eff_bound, aes(x = Year, y = Effortday, color = Sector) ) +
 
 ```
 
-## Comparing the mapped effort data to FAO catch data to see if CPUE tracks... 
+## Comparing the mapped effort data to FAO catch data to see if CPUE tracks...
 
 ```{r}
 all_filtered = all_metrics %>% 
@@ -130,4 +133,3 @@ combined = all_filtered %>%
 
 ## The difference between CPUE's does not look too large, especially for the Artisanal fishers. This might be because my brain is tired but im comfortable with this difference. 
 ```
-

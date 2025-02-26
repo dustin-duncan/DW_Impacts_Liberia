@@ -18,9 +18,8 @@ library(MQMF)
 library(datalimited2)
 library(nloptr)
 library(deSolve)
-library(rethinking)
+# library(rethinking)
 ```
-
 
 ```{r}
 cpue = read.csv(here::here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
@@ -31,11 +30,16 @@ all_metrics = read.csv(here::here("data_int/data_FAO/all_metrics_timeseries_1997
 ```
 
 ```{r}
-# library(readr)
-# SAU_EEZ_430_v50_1 <- read_csv(here::here("data_raw/data_SAU/SAU EEZ 430 v50-1.csv"))
-# View(SAU_EEZ_430_v50_1)
-```
+library(readr)
+SAU_EEZ_430_v50_1 <- read_csv(here::here("data_raw/data_SAU/SAU EEZ 430 v50-1.csv"))
+View(SAU_EEZ_430_v50_1)
 
+sardinellas <- SAU_EEZ_430_v50_1 %>% 
+  mutate(filters = if_else(str_detect(scientific_name, "Sardinella"), 1, 0)) %>% 
+  filter(filters %in% c(1)) %>% 
+  filter(year > 2003) %>% 
+  filter(gear_type %in% c("small scale seine nets", "subsistence fishing gear", "pelagic trawl", "artisanal fishing gear", "small scale gillnets"))
+```
 
 ## Quick Plots 
 
@@ -53,7 +57,7 @@ ggplot(all_metrics, aes(x = Year, y=Catch_tonnes, color=Fleet)) +
 
 ```
 
-## Using SPM function to develop harvest function 
+## Using datalimited2 package to estimate range of q values 
 
 ```{r}
 spmdata = all_metrics %>% 
@@ -70,75 +74,24 @@ spmdata = all_metrics %>%
   ungroup() %>% 
   as.data.frame()
 
-new_data = catch_nafaa %>% 
-  group_by(Year) %>% 
-  summarize(catch = sum(Catch_tonnes, na.rm=TRUE)) %>% 
-  rename(year = Year) %>% 
-  ungroup()
 
-cpue_info_test = lm(spmdata$cpue ~ spmdata$catch)
-summary(cpue_info_test)
+bsm_out = datalimited2::bsm(year=spmdata$year, 
+                            catch=spmdata$catch, 
+                            biomass=spmdata$cpue, 
+                            btype="CPUE", 
+                            r.low=0.35, r.hi=0.55, 
+                            stb.low=0.4, stb.hi=0.7)
 
-# Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
-100000*0.367
-100000*0.6*0.367
-inp=log(c(r=0.451, K=57000, Binit=16910, 0.01))
-test = plotspmmod(inp, spmdata)
-class(spmdata)
-param=log(c(0.451, 57000, 16910, 0.03))
-pnames=c("r", "K", "Binit", "sigma")
-best <- optim(par=param, fn=negLL, funk=simpspm, indat=spmdata,
-              logobs=log(spmdata[, "cpue"]),
-              method="BFGS")
-outfit(best, digits=4, title="Optim", parnames=pnames)
-cat("\n")
-best2 <- nlm(negLL, best$par, funk=simpspm, indat=spmdata,
-             logobs=log(spmdata[, "cpue"]))
-outfit(best2, digits=4, title="nlm", parnames=pnames)
-
-ans <- plotspmmod(inp=best2$estimate, indat = spmdata, addrmse=TRUE, plotprod=TRUE)
-str(ans$Dynamics, width=65, strict.width="cut",max.level=1)
-```
-
-## Using datalimited2 package 
-
-```{r}
-library(datalimited2)
-bsm_out = datalimited2::bsm(year=spmdata$year, catch=spmdata$catch, biomass=spmdata$cpue, btype="CPUE", r.low=0.35, r.hi=0.55, stb.low=0.4, stb.hi=0.7)
 plot_dlm(bsm_out)
 ref_pts = bsm_out[["ref_pts"]]
 ref_ts = bsm_out[["ref_ts"]]
 ```
 
-## Need interaction. How to? Start with basics 
-
 ```{r}
-lm_dat <- all_metrics %>% 
-  pivot_wider(names_from = Fleet, values_from=c(Catch_tonnes, CPUE, Effort),
-              names_glue = "{.value}_{Fleet}")
-lm_dat <- lm_dat %>% 
-  mutate(indCAlag = lag(Catch_tonnes_Industrial),
-         indCElag = lag(CPUE_Industrial),
-         indElag = lag(Effort_Industrial))
-?pivot_wider
-
-formula1 <- (log(lm_dat$Catch_tonnes_Artisanal) ~ log(lm_dat$Catch_tonnes_Industrial) + log(lm_dat$CPUE_Industrial) + log(lm_dat$Effort_Industrial))
-
-formula_lag <- (Catch_tonnes_Artisanal ~ indCAlag + indCElag + indElag)
-
-log_lag <- (log(Catch_tonnes_Artisanal) ~ log(indCAlag) + log(indCElag) + log(indElag))
-
-interaction <- lm(formula1, data=lm_dat)
-interaction_lag <- lm(formula_lag, data=lm_dat)
-interaction_log_lag <- lm(log_lag, data=lm_dat)
-
-summary(interaction_lag)
-summary(interaction_log_lag)
-summary(interaction)
-par(mfrow=c(2,2))
-plot(interaction)
-plot(interaction_log_lag)
+options(scipen=999)
+1.22e-06
 ```
+
 
 $$
 \begin{align}
@@ -147,49 +100,161 @@ $$
 &~~~~~~\text{of adult stock biomass } \\ 
 \mu &= \text{Zone natural mortality rate } \mathrm{(year^{-1})} \\ 
 v &= \text{Proportion of juvenile biomass that} \\
-&~~~~~~\text{recruits each year } \mathrm{(year^{-1})} \\
-\eta &= \text{Annual competition mortality rate for juveniles } \\  &~~~~~~\mathrm{(tons^{-1}year^{-1})} \\ ~ \\
+&~~~~~~\text{recruits each year } \mathrm{(year^{-1})} \\ ~ \\
 &\text{Economic Parameters} \\
 q_{f} &= \text{Catchability coefficient for fleet f}  \\ 
 &~~~~~\mathrm{(no~ dimension)} \\
 \phi &= \text{Rate of reinvesting in fisheries } \\
 &~~~~~\mathrm{(dimensionless)} \\
 p &= \text{Fish price } \mathrm{(USD~ton^{-1})} \\
-C_{z} &= \text{Cost for SSF effort in zone z} \\
-C &= \text{Cost for DWF effort in zone 1} \\ 
+c_{z} &= \text{Cost for SSF effort in zone z} \\
+c &= \text{Cost for DWF effort} \\ 
 \end{align}
 $$
+
+
 
 $$
 \begin{align}
-\frac{dB_{1}}{d \tau} &= [-\mu B_{1}-q_{A}B_{1}e_{1}-q_{I}B_{1}E+ vB_{j}(1-{\chi})] \\
+\frac{dB_{1}}{d \tau} &= -\mu B_{1}-q_{A}B_{1}e_{1}-q_{I}B_{1}E+ vB_{j}(1-{\chi}) \\
 
-\frac{dB_{2}}{d \tau} &=  [-\mu B_{2}-q_{A}B_{2}e_{2}+ vB_{j}{\chi}] \\
+\frac{dB_{2}}{d \tau} &=  -\mu B_{2}-q_{A}B_{2}e_{2}+ vB_{j}{\chi} \\
 
-\frac{dB_{3}}{d \tau} &= [\gamma(B_{1}+B_{2})-q_{A}B_{3}e_{3}-vB_{3}-\mu B_{3} - \eta B_{3}^{2}] \\
+\frac{dB_{3}}{d \tau} &= \gamma(B_{1}+B_{2})-q_{A}B_{3}e_{3}-vB_{3}-\mu B_{3} \\ 
  
-\frac{de_{1}}{d \tau} &= \phi[-C_{1}e_{1}+pq_{A}B_{1}e_{1}] \\
+\frac{de_{1}}{d \tau} &= e_{1} + \phi[-(c_{1}e_{1})^{2}+pq_{A}B_{1}e_{1}] \\
 
-\frac{de_{2}}{d \tau} &=  \phi[-C_{2}e_{2}+pq_{A}B_{2}e_{2}] \\
+\frac{de_{2}}{d \tau} &= e_{2} + \phi[-(c_{2}e_{2})^{2}+pq_{A}B_{2}e_{2}] \\
  
-\frac{de_{3}}{d \tau} &=  \phi[-C_{3}e_{3}+pq_{A}B_{3}e_{3}] \\
+\frac{de_{3}}{d \tau} &= e_{3} +  \phi[-(c_{3}e_{3})^{2}+pq_{A}B_{3}e_{3}] \\
  
-\frac{dE}{d \tau} &= \phi[-CE+(1-\alpha)pq_{I}B_{1}E] \\
+\frac{dE}{d \tau} &= E + \phi[ -(cE)^{2}+(1-\alpha)pq_{I}B_{1}E] \\
 
-\mathrm{C_{SSF, z,t}} &= \sum_{z=1}^{z=3} qB_{z,t}e_{z,t} \\
+\mathrm{C_{SSF, z,t}} &= q_{SSF}B_{z,t}e_{z,t} \\ 
 
-\mathrm{C_{DWF, t}} &= q_{1,D}B_{1,t}E_{t} \\
+\mathrm{C_{DWF, t}} &= q_{DWF}B_{1,t}E_{t} \\
 
-\mathrm{ NPV} &= \mathrm{\beta\Pi_{SSF}+(1-\beta)*\alpha* p*Catch_{DWF, t} }
+\Pi_{SSF,t} &= \sum_{z=1}^{z=3} pC_{SSF,z,t } - c_{z} e_{z,t} \\
+
+\mathrm{ NPV} &= \sum_{t=1}^{t=T} \rho^{t}[\mathrm{\beta\Pi_{SSF,t}+(1-\beta) \alpha p C_{DWF}] }
 
 \end{align}
 $$
+
+
 $$
 Y = q*f*B
 \\ Y = 5115 \\
 f = 158446 \\
 B = 22020
 $$
+
+## Using SPM function to develop harvest function 
+
+```{r}
+# Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
+catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv")) %>% 
+  group_by(Year) %>% 
+  summarize(Catch_tonnes = sum(Catch_tonnes)) %>% 
+  filter(Year > 2018) %>% 
+  rename(year = Year,
+         catch = Catch_tonnes) %>% 
+  mutate(year = seq(from=1, to= 5, by =1))
+
+## Im going to change the effort functions to be additive, because the new effort is insanely high, then change the fleet dynamics parameter to reflect the rate of entry into the fishery (i.e the effort response is not as large or as immediate)
+
+source("../utils/interaction2.R")
+source("../utils/loglikelihood.R")
+source("../utils/constraint.R")
+source("../utils/plot_fx.R")
+
+
+state = c(B1i = 9000, B2i = 9000, B3i = 4000,
+          e1i = 8000, e2i = 12000, e3i = 1000, Ei = 10000)
+
+newstate = c(B1i = 3638.688, B2i = 10207.942, B3i = 5158.846,
+          e1i = 15784.621, e2i = 4307.414, e3i = 1520.177, Ei = 3981.774)
+
+parameters = c(
+  # Biological parameters
+  mu=0.43, chi=0.5, 
+  gamma=0.5, v=1,
+  # Economic Parameters
+  q1D=0.00000147*2, q1S=0.00000147, q2=0.00000147, q3=0.00000147,
+  C1=0.060, C2=0.045, C3=0.040, C=0.045,
+  W=0.5, omega=0.005, p=500, discount=0.05)
+
+time = 10
+
+choice=0.1
+
+tester = interaction_LL(choice=0.1, state=log(newstate),time=time, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+
+ddplot(tester, bmsy=TRUE)
+######################## First test! These are preliminary results for when the fee is 10% of landed value over 10 years, when NaFAA places equal weight on the SSF profit and their revenue from DWF. 
+```
+
+
+```{r}
+# pars=log(state)
+# params=log(parameters)
+# choice = 0.1
+# indat=catch_nafaa
+# logobs=log(catch_nafaa[, "catch"]$catch)
+# funk=interaction_LL
+
+negativeLL(pars=log(newstate), 
+      funk=interaction_LL, 
+      logobs=log(catch_nafaa[, "catch"]$catch), 
+      choice = 0.1,
+      indat=catch_nafaa, 
+      params=log(parameters),
+      time=time)
+
+# This optimization is not working for some reason. Im not sure why but its janked 
+scalepar=magnitude(newstate)
+
+bestL <- optim(par = log(newstate),
+               fn = negativeLL,
+               funk=interaction_LL,
+               logobs=log(catch_nafaa[, "catch"]$catch),
+               choice=0.1,
+               indat=catch_nafaa, 
+               params=log(parameters), time=time,
+               rtn_catch = TRUE, rtn_npv=FALSE,
+               method="Nelder-Mead",
+               # lower = log(lower),
+               # upper = log(upper),
+               # hessian=TRUE,
+               control=list(maxit=1000,parscale=scalepar))
+
+options(scipen=999)
+exp(bestL$par)
+bestL$value
+bestL$counts
+bestL$convergence
+bestL$message
+
+## With the additional effort term (first iteration [incorrect specification but still appears to be the best initial parameter set])
+newstate = c(B1i = 3638.688, B2i = 10207.942, B3i = 5158.846,
+          e1i = 15784.621, e2i = 4307.414, e3i = 1520.177, Ei = 3981.774)
+
+## Without the additional effort term
+newstate = c(B1i = 5695.763, B2i = 8934.127, B3i = 5473.853,
+          e1i = 11761.151, e2i = 6378.981, e3i = 1071.943, Ei = 6076.548)
+
+negativeLL(pars=log(newstate), 
+      funk=interaction_LL, 
+      logobs=log(catch_nafaa[, "catch"]$catch), 
+      indat=catch_nafaa, 
+      parameters=log(parameters), 
+      time=time,rtn_catch=TRUE, rtn_npv=FALSE)
+
+tester = interaction_LL(choice=0.1, state=bestL$par,time=time, params=log(parameters), rtn_catch = TRUE)
+tester
+log(catch_nafaa[, "catch"]$catch)
+```
+
 ## New Interaction function
 
 ```{r}
@@ -204,366 +269,57 @@ $$
 
 ```{r}
 # Back of the napkin math used to estimate the starting catchability for each fleet. Used the all_metrics dataframe to divide catch by 22020*effort for 2017 (artisanal) and 2007 (industrial)
-time=2
-fee=0.9963719
-B1i = 9000; B2i = 9000; B3i = 4000; 
-e1i = 8000; e2i = 12000; e3i = 1000; Ei = 10000
-
-  # Biological parameters
-  gamma=10; v=20; eta=0.013; mu=0.43; chi=0.5;
-  # Economic Parameters
-  q1D=0.0000764; q1S=0.00000147; q2=0.00000147; q3=0.00000147;
-  C1=0.060; C2=0.045; C3=0.040; C=0.045;
-  W=0.75; omega=1; p=500; discount=0.05
-# state = c(B1i = 9000, B2i = 9000, B3i = 4000, 
-#           e1i = 8000, e2i = 12000, e3i = 1000, Ei = 10000)
-# 
-# times=seq(1, 365, by= 1)
-# 
-# parameters = c(
-#   # Biological parameters
-#   gamma=10, v=20, eta=0.013, mu=0.43, chi=0.5,
-#   # Economic Parameters
-#   q1D=0.0000764, q1S=0.00000147, q2=0.00000147, q3=0.00000147, 
-#   C1=0.060, C2=0.045, C3=0.040, C=0.045, 
-#   W=0.75, omega=1, p=500, discount=0.05)
-
-interaction_ode = function(choice, time, state, parameters) {
-  
-  B1=vector(mode="numeric", length=0)
-  B2=vector(mode="numeric", length=0)
-  B3=vector(mode="numeric", length=0)
-  e1=vector(mode="numeric", length=0)
-  e2=vector(mode="numeric", length=0)
-  e3=vector(mode="numeric", length=0)
-  E=vector(mode="numeric", length=0)
-  HS=vector(mode="numeric", length=0)
-  HS1=vector(mode="numeric", length=0)
-  HS2=vector(mode="numeric", length=0)
-  HS3=vector(mode="numeric", length=0)
-  HD=vector(mode="numeric", length=0)
-  benefits=vector(mode="numeric", length=0)
-  PIS=vector(mode="numeric", length=0)
-  
-  parameters = c(parameters, "fee"=choice)
-  
-  with(as.list(c(state, parameters)), {
-    
-  B1[1] = B1i
-  B2[1] = B2i
-  B3[1] = B3i
-  e1[1] = e1i
-  e2[1] = e2i
-  e3[1] = e3i # 102410*0.34
-  E[1] = Ei
-  
-  HS1[1] = (q1S*B1[1]*e1[1])
-  HS2[1] = (q2*B2[1]*e2[1]) 
-  HS3[1] = (q3*B3[1]*e3[1])
-  
-  HS[1] = HS1[1] + HS2[1] + HS3[1]
-  
-  PIS[1] = p*HS[1] - ((C1*e1[1])+(C2*e2[1])+(C3*e3[1]))
-
-  HD[1] = q1D*B1[1]*E[1]
-
-  benefits[1] = ((W)*(p*PIS[1])) + ((1-W)*fee*p*HD[1])
-  
-  for(t in 2:time) {
-  
-    B1[t] <- (-mu*B1[t-1])-(q1S*B1[t-1]*e1[t-1])-(q1D*B1[t-1]*E[t-1])+(v*B3[t-1]*(1-chi))
-    
-    B2[t] <- (-mu*B2[t-1])-(q2*B2[t-1]*e2[t-1])+(v*B3[t-1]*chi)
-    
-    B3[t] <- (gamma*(B1[t-1]+B2[t-1]))-(q3*B3[t-1]*e3[t-1])-(v*B3[t-1])-(mu*B3[t-1])-(eta*(B3[t-1]^2))
-    
-    e1[t] <- omega*((-C1*e1[t-1])+(p*q1S*B1[t-1]*e1[t-1])) 
-    
-    e2[t] <- omega*((-C2*e2[t-1])+(p*q2*B2[t-1]*e2[t-1]))
-    
-    e3[t] <- omega*((-C3*e3[t-1])+(p*q3*B3[t-1]*e3[t-1]))
-    
-    E[t] <- omega*((-C*E[t-1])+((1-fee)*p*q1D*B1[t-1]*E[t-1]))
-    
-    HS1[t] = (q1S*B1[t]*e1[t])
-    
-    HS2[t] = (q2*B2[t]*e2[t]) 
-    
-    HS3[t] = (q3*B3[t]*e3[t])
-    
-    HS[t] = HS1[t] + HS2[t] + HS3[t]
-
-    PIS[t] <- p*HS[t] - ((C1*e1[t])+(C2*e2[t])+(C3*e3[t]))
-
-    HD[t] <- q1D*B1[t]*E[t]
-
-    benefits[t] <- (W*PIS[t]) + ((1-W)*fee*p*HD[t])
-    
-  }
-  # list(c(dB1, dB2, dB3, de1, de2, de3, dE))
-  t=seq(from=1, to =time, by=1)
-  rho = 1/(1+discount)
-  pv = (rho^t)*benefits
-  npv=sum(pv)
-  return(-npv)
-  })
-}
-
-constraint_fx = function(choice, time, state, parameters) {
-  
-  B1=vector(mode="numeric", length=0)
-  B2=vector(mode="numeric", length=0)
-  B3=vector(mode="numeric", length=0)
-  e1=vector(mode="numeric", length=0)
-  e2=vector(mode="numeric", length=0)
-  e3=vector(mode="numeric", length=0)
-  E=vector(mode="numeric", length=0)
-  HS=vector(mode="numeric", length=0)
-  HS1=vector(mode="numeric", length=0)
-  HS2=vector(mode="numeric", length=0)
-  HS3=vector(mode="numeric", length=0)
-  HD=vector(mode="numeric", length=0)
-  benefits=vector(mode="numeric", length=0)
-  PIS=vector(mode="numeric", length=0)
-  conb1=vector(mode="numeric", length=0)
-  conb2=vector(mode="numeric", length=0)
-  conb3=vector(mode="numeric", length=0)
-  
-  parameters = c(parameters, "fee"=choice)
-  
-  with(as.list(c(state, parameters)), {
-    
-  B1[1] = B1i
-  B2[1] = B2i
-  B3[1] = B3i
-  e1[1] = e1i
-  e2[1] = e2i
-  e3[1] = e3i # 102410*0.34
-  E[1] = Ei
-  
-  HS1[1] = (q1S*B1[1]*e1[1])
-  HS2[1] = (q2*B2[1]*e2[1]) 
-  HS3[1] = (q3*B3[1]*e3[1])
-  
-  HS[1] = HS1[1] + HS2[1] + HS3[1]
-
-  HD[1] = q1D*B1[1]*E[1]
-  
-  conb1[1] = (HS1[1]+HD[1]) - B1[1]
-  conb2[1] = HS2[1] - B2[1]
-  conb3[1] = HS3[1] - B3[1]
-
-  
-  for(t in 2:time) {
-  
-    B1[t] <- (-mu*B1[t-1])-(q1S*B1[t-1]*e1[t-1])-(q1D*B1[t-1]*E[t-1])+(v*B3[t-1]*(1-chi))
-    
-    B2[t] <- (-mu*B2[t-1])-(q2*B2[t-1]*e2[t-1])+(v*B3[t-1]*chi)
-    
-    B3[t] <- (gamma*(B1[t-1]+B2[t-1]))-(q3*B3[t-1]*e3[t-1])-(v*B3[t-1])-(mu*B3[t-1])-(eta*(B3[t-1]^2))
-    
-    e1[t] <- omega*((-C1*e1[t-1])+(p*q1S*B1[t-1]*e1[t-1])) 
-    
-    e2[t] <- omega*((-C2*e2[t-1])+(p*q2*B2[t-1]*e2[t-1]))
-    
-    e3[t] <- omega*((-C3*e3[t-1])+(p*q3*B3[t-1]*e3[t-1]))
-    
-    E[t] <- omega*((-C*E[t-1])+((1-fee)*p*q1D*B1[t-1]*E[t-1]))
-    
-    HS1[t] = (q1S*B1[t]*e1[t])
-    
-    HS2[t] = (q2*B2[t]*e2[t]) 
-    
-    HS3[t] = (q3*B3[t]*e3[t])
-    
-    HS[t] = HS1[t] + HS2[t] + HS3[t]
-
-    HD[t] <- q1D*B1[t]*E[t]
-    
-    conb1[t] = (HS1[t]+HD[t]) - B1[t]
-    conb2[t] = HS2[t] - B2[t]
-    conb3[t] = HS3[t] - B3[t]
-  }
-  # return(c(conb1, conb2, conb3))
-  })
-}
-
 
 local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
 options=list("algorithm"="NLOPT_LN_AUGLAG",xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
 
-benefits_out=nloptr(x0=0.1,
-                    eval_f = interaction_ode,
+benefits_out=nloptr(x0 = 0.1,
+                    eval_f = interaction_LL,
                     opts = options,
                     lb = 0,
                     ub = 1,
                     eval_g_ineq=constraint_fx,
-                    time=2, 
-                    parameters=parameters,
-                    state=state
+                    state=log(newstate),
+                    time=10, 
+                    params=log(parameters),
+                    rtn_catch=FALSE,
+                    rtn_npv=TRUE,
+                    indat=NULL
                     )
+
 benefits_out$solution
 -benefits_out$objective
 
+tablee = interaction_LL(choice=benefits_out$solution, state=log(newstate), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
+ddplot(tablee)
 ```
 
-## Table function to see numbers 
+When running the model under initial parameter values and calibrated initial state values, over a 10-year time period with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 100%, leading to a net present value over a 10-year time period of $370,194 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF due to net losses, and eventually lead them to leave the fishery. Compared to the business as usual case, this would (to be continued...)
+
+### Results 
 
 ```{r}
+############ Trends in output with following parameters: ##############
 
-interaction_table = function(choice, time, state, parameters) {
-  
-  B1=vector(mode="numeric", length=0)
-  B2=vector(mode="numeric", length=0)
-  B3=vector(mode="numeric", length=0)
-  e1=vector(mode="numeric", length=0)
-  e2=vector(mode="numeric", length=0)
-  e3=vector(mode="numeric", length=0)
-  E=vector(mode="numeric", length=0)
-  HS=vector(mode="numeric", length=0)
-  HS1=vector(mode="numeric", length=0)
-  HS2=vector(mode="numeric", length=0)
-  HS3=vector(mode="numeric", length=0)
-  HD=vector(mode="numeric", length=0)
-  benefits=vector(mode="numeric", length=0)
-  PIS=vector(mode="numeric", length=0)
-  
-  parameters = c(parameters, "fee"=choice)
-  
-  with(as.list(c(state, parameters)), {
-    
-  B1[1] = B1i
-  B2[1] = B2i
-  B3[1] = B3i
-  e1[1] = e1i
-  e2[1] = e2i
-  e3[1] = e3i # 102410*0.34
-  E[1] = Ei
-  
-  HS1[1] = (q1S*B1[1]*e1[1])
-  HS2[1] = (q2*B2[1]*e2[1]) 
-  HS3[1] = (q3*B3[1]*e3[1])
-  
-  HS[1] = HS1[1] + HS2[1] + HS3[1]
-  
-  PIS[1] = p*HS[1] - ((C1*e1[1])+(C2*e2[1])+(C3*e3[1]))
+## choice = 0.5004061
+## time = 2 
+## state = c(B1i = 9000, B2i = 9000, B3i = 4000,
+#           e1i = 8000, e2i = 12000, e3i = 1000, Ei = 10000)
 
-  HD[1] = q1D*B1[1]*E[1]
+## parameters = c(
+#   # Biological parameters
+#   gamma=10, v=20, eta=0.013, mu=0.43, chi=0.5,
+#   # Economic Parameters
+#   q1D=0.0000764, q1S=0.00000147, q2=0.00000147, q3=0.00000147,
+#   C1=0.060, C2=0.045, C3=0.040, C=0.045,
+#   W=0.75, omega=1, p=500, discount=0.05)
 
-  benefits[1] = ((W)*(p*PIS[1])) + ((1-W)*fee*p*HD[1])
-  
-  for(t in 2:time) {
-  
-    B1[t] <- (-mu*B1[t-1])-(q1S*B1[t-1]*e1[t-1])-(q1D*B1[t-1]*E[t-1])+(v*B3[t-1]*(1-chi))
-    
-    B2[t] <- (-mu*B2[t-1])-(q2*B2[t-1]*e2[t-1])+(v*B3[t-1]*chi)
-    
-    B3[t] <- (gamma*(B1[t-1]+B2[t-1]))-(q3*B3[t-1]*e3[t-1])-(v*B3[t-1])-(mu*B3[t-1])-(eta*(B3[t-1]^2))
-    
-    e1[t] <- omega*((-C1*e1[t-1])+(p*q1S*B1[t-1]*e1[t-1])) 
-    
-    e2[t] <- omega*((-C2*e2[t-1])+(p*q2*B2[t-1]*e2[t-1]))
-    
-    e3[t] <- omega*((-C3*e3[t-1])+(p*q3*B3[t-1]*e3[t-1]))
-    
-    E[t] <- omega*((-C*E[t-1])+((1-fee)*p*q1D*B1[t-1]*E[t-1]))
-    
-    HS1[t] = (q1S*B1[t]*e1[t])
-    
-    HS2[t] = (q2*B2[t]*e2[t]) 
-    
-    HS3[t] = (q3*B3[t]*e3[t])
-    
-    HS[t] = HS1[t] + HS2[t] + HS3[t]
-
-    PIS[t] <- p*HS[t] - ((C1*e1[t])+(C2*e2[t])+(C3*e3[t]))
-
-    HD[t] <- q1D*B1[t]*E[t]
-
-    benefits[t] <- (W*PIS[t]) + ((1-W)*fee*p*HD[t])
-    
-  }
-  
-  t=seq(from=1, to =time, by=1)
-  rho = 1/(1+discount)
-  pv = (rho^t)*benefits
-  npv=sum(pv)
-  list(c(B1=B1, B2=B2, B3=B3, e1=e1, e2=e2, e3=e3, E=E, HS=HS, HD=HD))
-  })
-}
-
-tester = interaction_table(choice=benefits_out$solution, state = state, time = 2, parameters = parameters)
-tester
-```
-
-## ODE Solver to test the method 
-
-```{r}
-interaction_ode = function(choice, time, state, parameters) {
-  
-  # np <- length(parameters)
-  parameters = c(parameters, "fee"=choice)
-  
-  with(as.list(c(state, parameters)), {
-  
-    dB1 <- (((a/K2)*B2)-((a/K1)*B1))+(epsilon*((-M1*B1)-((q1S*B1*e1)/S1)-((q1D*B1*E)/S1)))
-    
-    dB2 <- (((a/K1)*B1)-((a/K2)*B2))+(epsilon*((-M2*B2)-((q2*B2*e2)/S2)+v*B3))
-    
-    dB3 <- epsilon*((gamma*(B1+B2))-((q3*B3*e3)/S3)-(v*B3)-(mu*B3)-(eta*(B3^2)))
-    
-    de1 <-  ((((b*S2)/B2)*e2) - (((b*S1)/B1)*e1)) + epsilon*(omega/C1)*((-C1*e1)+((p*q1S*B1*e1)/S1)) 
-    
-    de2 <-  ((((b*S1)/B1)*e1) + (((b*S3)/B3)*e3) - (((2*b*S2)/B2)*e2)) + epsilon*(omega/C2)*((-C2*e2)+((p*q2*B2*e2)/S2))
-    
-    de3 <-  ((((b*S2)/B2)*e2) - (((b*S3)/B3)*e3)) + epsilon*(omega/C3)*((-C3*e3)+((p*q3*B3*e3)/S3))
-    
-    dE <- epsilon*(omega/C)*((-C*E)+(((1-fee)*p*q1D*B1*E)/S1))
-    
-    # HS[t] = ((q1S*B1[t]*e1[t])) + ((q2*B2[t]*e2[t])) + ((q3*B3[t]*e3[t]))
-    # 
-    # HD[t] = (q1D*B1[t]*E[t])
-    # 
-    # benefits[t] = (W)*(p*HS[t]) + (1-W)*choice*HD[t]
-  list(c(dB1, dB2, dB3, de1, de2, de3, dE))
-  })
-}
-
-tmp_ode = ode(y = state, times = times, func = interaction_ode, parms=parameters, choice=choice)
+## It appears that the biomass in each zone in time = 2 increases, along with effort in each zone. This tells us the following: The harvest in time 1 is both profitable for all fleets and not enough to diminish biomass significantly. In addition, with the given weighting parameters and incorporating distant water harvest into the NaFAA benefits formula, the optimal solution says that DWF effort will increase a LOT in time two. 
 
 ```
 
 
-```{r}
-out_long_B = out_df %>%  
-  select(B1, B2, B3, time) %>% 
-  pivot_longer(cols = c(B1, B2, B3), names_to = "Zone_B", values_to = "Biomass") %>% 
-  mutate(Zone = case_when(
-    Zone_B == "B1" ~ 1,
-    Zone_B == "B2" ~ 2,
-    Zone_B == "B3" ~ 3,
-  ))
-  
-out_long_e = out_df %>% 
-  select(e1, e2, e3, E, time) %>% 
-  pivot_longer(cols = c(e1, e2, e3, E), names_to = "Zone_eff", values_to = "Effort") %>% 
-  mutate(Zone = case_when(
-    Zone_eff == "e1" ~ 1,
-    Zone_eff == "e2" ~ 2,
-    Zone_eff == "e3" ~ 3,
-    Zone_eff == "E" ~ 1,
-  )) %>%  
-  left_join(out_long_B, by = c("time", "Zone")) %>% 
-  mutate(Zone = as.factor(Zone))
- 
-ggplot() + 
-  geom_line(data = out_long_e, aes(x = time, y = Biomass, color = Zone_B)) + 
-  geom_line(data = out_long_e, aes(x = time, y = Effort, color = Zone_eff)) + 
-  facet_wrap(~Zone)
 
-## Make plot as ratio of biomass to carrying capacity 
-
-```
 
 
 
