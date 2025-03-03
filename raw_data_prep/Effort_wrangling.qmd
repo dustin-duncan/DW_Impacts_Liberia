@@ -34,7 +34,10 @@ unique(effort_filt$Gear)
 
 effort_gear_filt = effort_filt %>% 
   filter(Gear %in% c("Gillnets", "Seine_Danish_and_Other","Trawl_Midwater_or_Unsp")) %>% 
+  filter(!(Gear =="Trawl_Midwater_or_Unsp" & Length_Category =="12-24m")) %>% 
   mutate(Year = as.integer(Year))
+  
+unique(effort_gear_filt$Gear)
 
 range(effort_gear_filt$EffActive)
 
@@ -77,6 +80,7 @@ effort_days = effort_filt %>%
 
 effort_gear_filt = effort_days %>% 
   filter(Gear %in% c("Gillnets", "Seine_Danish_and_Other","Trawl_Midwater_or_Unsp")) %>% 
+  filter(!(Gear =="Trawl_Midwater_or_Unsp" & Length_Category =="12-24m")) %>%
   mutate(Year = as.integer(Year))
 options(scipen=999)
 range(effort_gear_filt$NomActive)
@@ -87,7 +91,7 @@ range(effort_gear_filt$P)
 
 eff_tidy = effort_gear_filt %>% 
   group_by(Year, 
-           Gear,
+           # Gear,
            Sector) %>% 
   summarize(Effortday = sum(effdays, na.rm=TRUE),
             Effortnom = sum(NomActive, na.rm=TRUE)) 
@@ -133,3 +137,32 @@ combined = all_filtered %>%
 
 ## The difference between CPUE's does not look too large, especially for the Artisanal fishers. This might be because my brain is tired but im comfortable with this difference. 
 ```
+
+
+```{r}
+library(readr)
+SAU_EEZ_430_v50_1 <- read_csv(here::here("data_raw/data_SAU/SAU EEZ 430 v50-1.csv"))
+View(SAU_EEZ_430_v50_1)
+
+
+sardinellas <- SAU_EEZ_430_v50_1 %>% 
+  mutate(filters = if_else(str_detect(scientific_name, "Sardinella"), 1, 0)) %>% 
+  filter(filters %in% c(1)) %>% 
+  filter(year >= 2003) %>% 
+  filter(gear_type %in% c("small scale seine nets", "subsistence fishing gear", "pelagic trawl", "artisanal fishing gear", "small scale gillnets", "bottom trawl")) %>% 
+  filter(fishing_entity %in% c("China", "Liberia")) %>% 
+  filter(catch_type != "Discards") %>% 
+  group_by(year, fishing_entity) %>% 
+  summarize(catch_tonnes = sum(tonnes, na.rm=TRUE),
+            value = sum(landed_value, na.rm=TRUE)) %>% 
+  mutate(price_per_tonne = value / catch_tonnes)
+
+price = sardinellas %>% 
+  group_by(year) %>% 
+  summarize(price = mean(price_per_tonne))
+
+mean(price$price)
+sd(price$price)
+unique(sardinellas$fishing_entity)
+```
+

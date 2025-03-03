@@ -13,7 +13,7 @@
 #' @export
 #'
 #' @examples
-interaction_spawn = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE, rtn_npv=FALSE, ban=FALSE) {
+interaction_calib = function(choice, fee, time, params, indat=NULL, rtn_catch=TRUE, rtn_npv=FALSE, ban=FALSE) {
   
   if(rtn_catch == TRUE & rtn_npv ==TRUE) stop("Error in args `rtn_catch`, `rtn_npv`: cannot specify both as TRUE ")
   
@@ -32,11 +32,17 @@ interaction_spawn = function(choice, state, time, params, indat=NULL, rtn_catch=
   benefits=vector(mode="numeric", length=0)
   PIS=vector(mode="numeric", length=0)
   catch=vector(mode="numeric", length=0)
+  # choice=vector(mode="numeric", length=length(choice))
   
-  params = c(params, "fee" = as.numeric(choice))
+  params = c(params, "fee" = as.numeric(fee))
   
   params = exp(params)
-  
+  B1i=choice[1]; B2i=choice[2]; B3i=choice[3];
+  e1i=choice[4]; e2i=choice[5]; e3i=choice[6];
+  Ei=choice[7]; chi=choice[8]
+  state=c(B1i=B1i, B2i=B2i, B3i=B3i, 
+          e1i=e1i, e2i=e2i, e3i=e3i,
+          Ei=Ei, chi=chi)
   state=exp(state)
   
   with(as.list(c(state, params)), {
@@ -68,15 +74,15 @@ interaction_spawn = function(choice, state, time, params, indat=NULL, rtn_catch=
       
       recruit <- v*B3[t-1]
       
-      spawn = (B1[t-1]+B2[t-1])+(0.45*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/40000))) # Replaces (gamma*(B1[t-1]+B2[t-1]))
+      # spawn = (B1[t-1]+B2[t-1])+(0.45*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/40000))) # Replaces (gamma*(B1[t-1]+B2[t-1]))
       
       # recruit = if(recruit < 0) 0 else recruit
       
-      B1[t] <- B1[t-1] + (-mu*B1[t-1])-(qS*B1[t-1]*e1[t-1])-(qD*B1[t-1]*E[t-1])+(recruit*(1-chi))
+      B1[t] <- B1[t-1] + (-mu*B1[t-1])-(qS*B1[t-1]*e1[t-1])-(qD*B1[t-1]*E[t-1])+(recruit*(chi))
       
-      B2[t] <- B2[t-1] + (-mu*B2[t-1])-(qS*B2[t-1]*e2[t-1])+(recruit*chi)
+      B2[t] <- B2[t-1] + (-mu*B2[t-1])-(qS*B2[t-1]*e2[t-1])+(recruit*(1-chi))
       
-      B3[t] <- B3[t-1] + spawn - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
+      B3[t] <- B3[t-1] + (gamma*(B1[t-1]+B2[t-1])) - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
       # -(eta*(B3[t-1]^2))
       
       e1[t] <- (phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1])) ) + e1[t-1] 
