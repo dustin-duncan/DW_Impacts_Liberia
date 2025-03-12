@@ -132,12 +132,15 @@ eff_join = eff_bound %>%
 
 combined = all_filtered %>% 
   left_join(eff_join, by = c("Year", "Fleet")) %>% 
-  mutate(CPUE_new = Catch_tonnes/Effortday,
-         CPUE_diff = CPUE_new-CPUE)
+  mutate(CPUE_day = Catch_tonnes/Effortday,
+         CPUE_nom = Catch_tonnes/Effortnom,
+         CPUE_day_diff = CPUE_day-CPUE,
+         CPUE_nom_diff = CPUE_nom-CPUE)
+
+# write_csv(combined, here::here("data_int/data_lit/effort_Rousseau_bound_FAO_metrics.csv"))
 
 ## The difference between CPUE's does not look too large, especially for the Artisanal fishers. This might be because my brain is tired but im comfortable with this difference. 
 ```
-
 
 ```{r}
 library(readr)
@@ -165,4 +168,3 @@ mean(price$price)
 sd(price$price)
 unique(sardinellas$fishing_entity)
 ```
-

@@ -18,16 +18,13 @@ library(nloptr)
 library(calibrar)
 library(sensitivity)
 library(purrr)
+# install.packages("furrr")
+library(furrr)
 ```
 
 ### Packages Used
 
 Oliveros–Ramos R, Shin Y (2016). “calibrar: an R package for the calibration of complex ecological models.” Submitted. R package version 0.3, https://arxiv.org/abs/1603.03141.
-
-Wickham H, Henry L (2025). purrr: Functional Programming Tools. R package version 1.0.4, https://github.com/tidyverse/purrr, https://purrr.tidyverse.org/.
-
-
-
 
 ```{r}
 cpue = read.csv(here::here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
@@ -37,7 +34,7 @@ catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_202
 all_metrics = read.csv(here::here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
 ```
 
-## Quick Plots 
+## Quick Plots
 
 ```{r}
 
@@ -53,15 +50,15 @@ ggplot(all_metrics, aes(x = Year, y=Catch_tonnes, color=Fleet)) +
 
 ```
 
-## Using datalimited2 package to estimate range of q values 
+## Using datalimited2 package to estimate range of q values
 
 ```{r}
 spmdata = all_metrics %>% 
   group_by(Year) %>% 
-  summarize(catch = sum(Catch_tonnes, na.rm = TRUE),
-    effort = sum(Effort, na.rm=TRUE)) %>% 
+  janitor::clean_names() %>%
+  summarize(catch = sum(catch_tonnes, na.rm = TRUE),
+            effort = sum(effort, na.rm=TRUE)) %>%
   mutate(cpue = catch/effort) %>%
-  rename(year = Year) %>% 
   mutate(year = as.numeric(year),
          catch = as.numeric(catch),
          effort = as.numeric(effort)) %>% 
@@ -70,19 +67,49 @@ spmdata = all_metrics %>%
   ungroup() %>% 
   as.data.frame()
 
+spmdat2 = catch_nafaa %>%
+  group_by(Year) %>% 
+  summarize(Catch_tonnes = sum(Catch_tonnes)) %>%
+  rename(year = Year, 
+         catch = Catch_tonnes) %>% 
+  mutate(effort=NA, cpue=NA)
+
+spmdata = spmdata %>% 
+  rbind(spmdat2)
+
+spmdat3 = read.csv(here::here("data_int/data_lit/effort_Rousseau_bound_FAO_metrics.csv")) %>% 
+  select(c(Fleet, Year, Catch_tonnes, Effortday, CPUE_day)) %>%
+    janitor::clean_names() %>% 
+    group_by(year) %>% 
+    summarize(catch = sum(catch_tonnes, na.rm=TRUE),
+            effort = sum(effortday, na.rm=TRUE),
+            cpue = sum(cpue_day, na.rm=TRUE)) %>% 
+    rbind(spmdat2)
 
 bsm_out = datalimited2::bsm(year=spmdata$year, 
                             catch=spmdata$catch, 
                             biomass=spmdata$cpue, 
                             btype="CPUE", 
-                            r.low=0.35, r.hi=0.55, 
-                            stb.low=0.4, stb.hi=0.7)
+                            r.low=0.35, r.hi=0.55
+                            # ,stb.low=0.4, stb.hi=0.7
+                            )
 
 plot_dlm(bsm_out)
 ref_pts = bsm_out[["ref_pts"]]
 ref_ts = bsm_out[["ref_ts"]]
-```
 
+bsm_out2 = datalimited2::bsm(year=spmdat3$year, 
+                            catch=spmdat3$catch, 
+                            biomass=spmdat3$cpue, 
+                            btype="CPUE", 
+                            r.low=0.35, r.hi=0.55
+                            # ,stb.low=0.4, stb.hi=0.7
+                            )
+
+plot_dlm(bsm_out2)
+ref_pts = bsm_out2[["ref_pts"]]
+ref_ts = bsm_out2[["ref_ts"]]
+```
 
 $$
 \begin{align}
@@ -103,9 +130,7 @@ c &= \text{Cost for DWF effort} \\
 \end{align}
 $$
 
-
-
-$$
+$$ 
 \begin{align}
 \frac{dB_{1}}{d \tau} &= -\mu B_{1}-q_{A}B_{1}e_{1}-q_{I}B_{1}E+ vB_{j}(1-{\chi}) \\
 
@@ -129,10 +154,10 @@ $$
 
 \mathrm{ NPV} &= \sum_{t=1}^{t=T} \rho^{t}[\mathrm{\beta\Pi_{SSF,t}+(1-\beta) \alpha p C_{DWF}] }
 
-\end{align}
+\end{align} 
 $$
 
-## Using SPM function to develop harvest function 
+## First go 
 
 ```{r}
 # Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
@@ -147,20 +172,25 @@ catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_202
 ## Im going to change the effort functions to be additive, because the new effort is insanely high, then change the fleet dynamics parameter to reflect the rate of entry into the fishery (i.e the effort response is not as large or as immediate)
 
 source("../utils/interaction2.R")
-source("../utils/loglikelihood.R")
 source("../utils/constraint.R")
+source("../utils/loglikelihood.R")
 source("../utils/plot_fx.R")
 
 
-state = c(B1i = 9000, B2i = 10000, B3i = 6000,
-          e1i = 10000, e2i = 12000, e3i = 2000, Ei = 10000)
+state = c(B1i = 10000, B2i = 10000, B3i = 6000,
+          e1i = 10000, e2i = 12000, e3i = 2000, Ei = 10000,
+          K = 50000)
 
 newstate = c(B1i = 3638.688, B2i = 9807.942, B3i = 5158.846,
           e1i = 9784.621, e2i = 4307.414, e3i = 1520.177, Ei = 3981.774)
 
+upper = c(B1i = 15000, B2i = 15000, B3i = 10000,
+          e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548,
+          K=60000)
+
 parameters = c(
   # Biological parameters
-  mu=0.43, chi=0.5,
+  mu=0.43, chi=0.5, 
   gamma=1, v=1,
   # Economic Parameters
   qD=0.00000294, qS=0.00000147,
@@ -179,12 +209,9 @@ ddplot(tester, bmsy=TRUE)
 ######################## First test! These are preliminary results for when the fee is 10% of landed value over 10 years, when NaFAA places equal weight on the SSF profit and their revenue from DWF. 
 ```
 
-## Initial State calibration against NaFAA data 
+## Initial State calibration against NaFAA data
 
 ```{r}
-# newstate = c(B1i = 3638.688, B2i = 10207.942, B3i = 5158.846,
-#           e1i = 15784.621, e2i = 4307.414, e3i = 1520.177, Ei = 3981.774)
-
 negativeLL(pars=log(state), 
       funk=interaction_LL, 
       logobs=log(catch_nafaa[, "catch"]$catch), 
@@ -194,7 +221,18 @@ negativeLL(pars=log(state),
       time=5)
 
 # This optimization is not working for some reason. Im not sure why 
-scalepar=magnitude(newstate)
+
+state = c(B1i = 12000, B2i = 12000, B3i = 6000,
+          e1i = 15000, e2i = 15000, e3i = 7000, Ei = 9000, K=35000)
+
+lower = c(B1i = 3639, B2i = 9808, B3i = 5159,
+          e1i = 9785, e2i = 4307, e3i = 1520, Ei = 3982, K=30000)
+
+upper = c(B1i = 15000, B2i = 15000, B3i = 10000,
+          e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548,
+          60000)
+
+scalepar=magnitude(state)
 
 best2 <- optim2(par = log(state),
                fn = negativeLL,
@@ -205,11 +243,8 @@ best2 <- optim2(par = log(state),
                params=log(parameters), time=5,
                rtn_catch = TRUE, rtn_npv=FALSE,
                method="L-BFGS-B",
-               active = c(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE),
-               lower = log(newstate),
-               upper = log(c(B1i = 15000, B2i = 15000, B3i = 10000,
-          e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548)),
-               hessian=TRUE,
+               lower = log(lower),
+               upper = log(upper),
                control=list(maxit=1000,parscale=scalepar))
 
 options(scipen=999)
@@ -219,22 +254,18 @@ best2$counts
 best2$convergence
 best2$message
 
-tester = interaction_LL(choice=0.1, state=log(exp(best2$par)),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
-
-# finalinitstate=exp(best2$par)
-
 ## Testing it with the new spawning function
-# exp(best2$par)
-# bestspawn <- optim2(par = log(state),
+# 
+# bestspawn <- optim2(par = log(exp(best2$par)),
 #                fn = negativeLL,
-#                funk=interaction_spawn,
+#                funk=interaction_LL,
 #                logobs=log(catch_nafaa[, "catch"]$catch),
 #                choice=0.1,
 #                indat=catch_nafaa,
 #                params=log(parameters), time=5,
 #                rtn_catch = TRUE, rtn_npv=FALSE,
 #                method="L-BFGS-B",
-#                active = c(TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE),
+#                active = c(FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE),
 #                lower = log(newstate),
 #                upper = log(c(B1i = 15000, B2i = 15000, B3i = 10000,
 #           e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548)),
@@ -247,29 +278,40 @@ tester = interaction_LL(choice=0.1, state=log(exp(best2$par)),time=5, params=log
 # bestspawn$counts
 # bestspawn$convergence
 # bestspawn$message
-# # 
+# 
 # spawntesttab = interaction_LL(choice=0.1, state=log(exp(bestspawn$par)),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
 # 
 # spawntestnpv = -interaction_LL(choice=0.1, state=log(exp(best2$par)),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+
 ```
 
 ## Five Year Time Horizon
 
 ```{r}
 # Back of the napkin math used to estimate the starting catchability for each fleet. Used the all_metrics dataframe to divide catch by 22020*effort for 2017 (artisanal) and 2007 (industrial)
-best2par = c(B1i=15000, B2i=15000, B3i=7133, e1i=12186, e2i=16437, e3i=2193, Ei=3982)
+# best2par = c(B1i=15000, B2i=15000, B3i=7133, e1i=12186, e2i=16437, e3i=2193, Ei=3982,K=53855)
+# best2par = c(B1i=14120, B2i=11827, B3i=6009, e1i=20630, e2i=25241, e3i=7016, Ei=5023, K=37600) 
+# best2par=c(B1i=15000, B2i=11524, B3i=6009, e1i=19884, e2i=23843, e3i=7014, Ei=5024, K=37600)
+# best2par=c(B1i=13755, B2i=11621, B3i=6724, e1i=23920, e2i=24550, e3i=8225, Ei=6838, K=37600)
+# best2par=c(B1i=13259, B2i=11205, B3i=6684, e1i=23950, e2i=25354, e3i=8289, Ei=13605, K=53855)
+# best2par=c(B1i=15000, B2i=12828, B3i=6343, e1i=17393, e2i=18150, e3i=7352, Ei=12516, K=53855)
+# best2par=c(B1i=15000, B2i=12819, B3i=6357, e1i=15971, e2i=16957, e3i=7305, Ei=10000, K=53855) 
+best2par = best2$par
+best2par['K'] = log(53855)
+best2par = exp(best2par)
+# best3par=best2par
 ## Five year projection under business as usual
 
-fiveyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+fiveyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE, ban=FALSE)
 
-fiveyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+fiveyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE, ban=FALSE)
 
 ## Five year projection under optimized fee structure 
 
 local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
 options=list("algorithm"="NLOPT_LN_AUGLAG",xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
 
-fiveyroptnpv=nloptr(x0 = 0.1,
+fiveyropt=nloptr(x0 = 0.1,
                     eval_f = interaction_LL,
                     opts = options,
                     lb = 0,
@@ -284,10 +326,12 @@ fiveyroptnpv=nloptr(x0 = 0.1,
                     indat=NULL
                     )
 
-fiveyroptnpv$solution
--fiveyroptnpv$objective
+fiveyropt$solution
+-fiveyropt$objective
 
-fiveyropttab = interaction_LL(choice=fiveyroptnpv$solution, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
+fiveyropttab = interaction_LL(choice=fiveyropt$solution, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
+
+fiveyroptnpv = -interaction_LL(choice=fiveyropt$solution, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE)
 
 ## Five year projection with a ban
 
@@ -295,13 +339,12 @@ fiveyrbantab = interaction_LL(choice=0.1, state=log(best2par), time=5, params=lo
 
 fiveyrbannpv = -interaction_LL(choice=0.1, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE, ban=TRUE)
 
-ddplot(fiveyropttab, bmsy=TRUE)
 ddplot(fiveyrbautab, bmsy=TRUE)
+ddplot(fiveyropttab, bmsy=TRUE)
 ddplot(fiveyrbantab, bmsy=TRUE)
 ```
 
-When running the model under initial parameter values and calibrated initial state values, over a 5-year time period with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 100%, leading to a net present value over a 5-year time period of \$1,263,467 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF due to net losses, and eventually lead them to leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$720,891. While the optimal solution represents an effective ban of DWF from Liberia’s EEZ, if NaFAA were to immediately ban and restrict all access by DWF, the net present value of fisheries revenues would decrease by \$1,128,627 compared to the optimal scenario, and \$407,736 business as usual case. 
-
+When running the model under initial parameter values and calibrated initial state values, over a 5-year time period with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 100%, leading to a net present value over a 5-year time period of \$616,737 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF due to net losses, and eventually lead them to leave the fishery due to net capital loss. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$198,707. While the optimal solution represents an effective ban of DWF from Liberia’s EEZ, if NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$12,558 compared to the business as usual case.
 
 ## Ten Year Time Horizon
 
@@ -311,6 +354,17 @@ When running the model under initial parameter values and calibrated initial sta
 ## ten year projection under business as usual
 
 tenyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+# 
+# tenyrbautab2 = interaction_LL(choice=1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+# 
+# eff_diff = tibble(time=tenyrbautab1$time, E_low=tenyrbautab1$E, E_high=tenyrbautab2$E, H_low=tenyrbautab1$HD, H_high=tenyrbautab2$HD)
+# 
+# ggplot(eff_diff) + 
+#   geom_line(aes(x=time, y=E_low), color="red") + 
+#   geom_line(aes(x=time, y=E_high), color="green")
+# ggplot(eff_diff) + 
+#   geom_line(aes(x=time, y=H_low), color="red") + 
+#   geom_line(aes(x=time, y=H_high), color="green")
 
 tenyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
 
@@ -319,7 +373,7 @@ tenyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=10, params=lo
 local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
 options=list("algorithm"="NLOPT_LN_AUGLAG",xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
 
-tenyroptnpv=nloptr(x0 = 0.1,
+tenyropt=nloptr(x0 = 0.5,
                     eval_f = interaction_LL,
                     opts = options,
                     lb = 0,
@@ -334,10 +388,12 @@ tenyroptnpv=nloptr(x0 = 0.1,
                     indat=NULL
                     )
 
-tenyroptnpv$solution
--tenyroptnpv$objective
+tenyropt$solution
+-tenyropt$objective
 
-tenyropttab = interaction_LL(choice=tenyroptnpv$solution, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
+tenyropttab = interaction_LL(choice=tenyropt$solution, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
+
+tenyroptnpv = -interaction_LL(choice=tenyropt$solution, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE)
 
 ## ten year projection with a ban
 
@@ -345,33 +401,56 @@ tenyrbantab = interaction_LL(choice=0.1, state=log(best2par), time=10, params=lo
 
 tenyrbannpv = -interaction_LL(choice=0.1, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE, ban=TRUE)
 
-ddplot(tenyropttab, bmsy=TRUE)
 ddplot(tenyrbautab, bmsy=TRUE)
+ddplot(tenyropttab, bmsy=TRUE)
 ddplot(tenyrbantab, bmsy=TRUE)
+
+## biomass estimate by reference point
+tenyrbautab1 = tenyrbautab %>% 
+  mutate(scenario = "bau")
+
+tenyrbantab1 = tenyrbantab %>% 
+  mutate(scenario = "ban")
+
+tenyropttab1 = tenyropttab %>% 
+  mutate(scenario = "opt")
+
+tenyrall = tenyrbautab1 %>% 
+  rbind(tenyropttab1) %>% 
+  rbind(tenyrbantab1) %>% 
+  mutate(bbmsy = (B1+B2+B3)/26992)
+
+## SSF total profit estimate 
+tenyrprof = tibble("time" = seq(from=1,to=10),
+                   "bau" = tenyrbautab1$pvPIS, 
+                   "opt" = tenyropttab1$pvPIS, 
+                   "ban" = tenyrbantab1$pvPIS) %>% 
+  pivot_longer(cols = -time, names_to="scenario", values_to="pv_profit") %>% 
+  group_by(scenario) %>%
+  summarize(npv = sum(pv_profit))
 ```
 
-When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 41.5%, leading to a net present value over a 10-year time period of \$2,614,062 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$17,381. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease to \$2,164,062 compared to the business as usual case. 
+When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to to raise the price of the access fee to 100% again, leading to a net present value over a 10-year time period of \$720,837 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF, and similarly to the five year time horizon, lead them to eventually leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$234,627. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$14,131 compared to business as usual. 
 
-## Sobol Sensitivity Analysis 
+## Sobol Sensitivity Analysis
 
-### Cost Parameters
-
-For this sensitivity analysis we will be varying cost and price parameters to estimate how sensitive the bio-economic model is to them. To do this, we will create a wrapper function that takes the Sobol object as an input, and applies them to the interactionLl function. 
+For this sensitivity analysis we will be varying cost and price parameters to estimate how sensitive the bio-economic model is to them. To do this, we will create a wrapper function that takes the Sobol object as an input, and applies them to the interactionLl function.
 
 ```{r}
+parameters
 
-C1 = rnorm(1000, mean=0.06, sd=(0.06*0.1))
-C2 = rnorm(1000, mean=0.045, sd=(0.045*0.1))
-C3 = rnorm(1000, mean=0.04, sd=(0.04*0.1))
-C = rnorm(1000, mean=0.045, sd=(0.045*0.1))
+C1 = rnorm(1000, mean=0.06, sd=(0.06*0.25))
+C2 = rnorm(1000, mean=0.045, sd=(0.045*0.25))
+C3 = rnorm(1000, mean=0.04, sd=(0.04*0.25))
+C = rnorm(1000, mean=0.045, sd=(0.045*0.25))
 p = rnorm(1000, mean=500, sd=25)
 
 parms1 = cbind.data.frame(C1=C1,C2=C2,C3=C3, C=C, p=p)
 
-C1 = rnorm(1000, mean=0.06, sd=(0.06*0.1))
-C2 = rnorm(1000, mean=0.045, sd=(0.045*0.1))
-C3 = rnorm(1000, mean=0.04, sd=(0.04*0.1))
-C = rnorm(1000, mean=0.045, sd=(0.045*0.1))
+C1 = rnorm(1000, mean=0.06, sd=(0.06*0.25))
+C2 = rnorm(1000, mean=0.045, sd=(0.045*0.25))
+C3 = rnorm(1000, mean=0.04, sd=(0.04*0.25))
+C = rnorm(1000, mean=0.045, sd=(0.045*0.25))
 p = rnorm(1000, mean=500, sd=25)
 
 parms2 = cbind.data.frame(C1=C1,C2=C2,C3=C3, C=C, p=p)
@@ -385,99 +464,147 @@ sobolparameters = c(
   mu=0.43, chi=0.5, 
   gamma=1, v=1,
   # Economic Parameters
-  qD=0.00000294, qS=0.00000147, 
+  qD=0.00000294, qS=0.00000147,
   # C1=0.060, C2=0.045, C3=0.040, C=0.045, p=500,
   beta=0.5, phi=0.005, discount=0.05)
 
-cost_wrapper <- function(C1, C2, C3, C, p, funk, choice, state, time, params, indat=NULL, rtn_catch=FALSE, rtn_npv=TRUE, ban=FALSE) {
+cost_wrapper <- function(C1, C2, C3, C, p, funk, confunk, state, time, params, indat=NULL, rtn_catch=FALSE, rtn_npv=TRUE, ban=FALSE, wrap_npv=TRUE, wrap_sol=FALSE) {
   
   sob = c(C1=C1,C2=C2,C3=C3, C=C, p=p)
   sob =log(sob)
+  
   parms = c(params, sob)
   
-  out = -funk(choice=choice, state=state,time=time, params=parms, rtn_catch = FALSE, rtn_npv=TRUE, ban=FALSE)
+  local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-6)
+  options=list("algorithm"="NLOPT_LN_AUGLAG", xtol_rel=1e-6,maxeval=16000,"local_opts"=local_opts)
   
-  return(out)
+  npvobj=nloptr(x0 = 0.1,
+                eval_f = funk,
+                    opts = options,
+                    lb = 0,
+                    ub = 1,
+                    eval_g_ineq=confunk,
+                    state=state,
+                    time=time,
+                    params=parms,
+                    rtn_catch=FALSE,
+                    rtn_npv=TRUE,
+                    ban=FALSE,
+                    indat=NULL)
   
+  out=npvobj$solution
+  npv=-npvobj$objective
+  cat("Alpha = ", out, "\n NPV = ", npv, "\n")
+
+  # if(wrap_npv == TRUE & wrap_sol == FALSE ) {
+  #   return(npv)
+  # } else if(wrap_npv == FALSE & wrap_sol == TRUE) {
+  #   return(out)
+  # }
+  return(list(out=out, npv=npv))
 }
 
-
-# interaction_LL(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
-# first_row = as.data.frame(sens_P$X)[1:5,]
+plan(multisession, workers = availableCores() - 1)
 
 sens_obj <- as.data.frame(sens_P$X) %>% 
-  rowwise() %>% 
-  pmap(cost_wrapper,
+  future_pmap(cost_wrapper,
        funk=interaction_LL,
-       choice=0.1, 
-       state=best2$par,
-       time=10, 
+       confunk=constraint_fx,
+       state=log(best2par),
+       time=10,
        params=log(sobolparameters),
        indat=NULL,
-       rtn_catch = FALSE, 
+       rtn_catch = FALSE,
        rtn_npv=TRUE,
-       ban=FALSE)
+       ban=FALSE,
+       wrap_npv=TRUE,
+       wrap_sol=FALSE)
+
+plan(sequential) 
+
+npv = unlister(sens_obj, rtn_npv=TRUE)
+out = unlister(sens_obj, rtn_npv=FALSE)
+range(npv)
+range(out)
 
 sens_result = unlist(sens_obj)
-
 range(sens_result)
 
 sens_eff = sensitivity::tell(sens_P, sens_result, sens_result.names = "npv")
+
 sens_eff$S
 sens_eff$T
-
 print(sens_eff)
+
 sens_parameters = as.data.frame(sens_P$X)
 
 both_cost = cbind.data.frame(sens_parameters, npv=sens_eff$y)
 
 npv_uncertainty_cost <- ggplot(both_cost, aes(x=npv)) +
-  geom_histogram(color = "grey90", bins = 35) + 
-  geom_vline(xintercept=mean(both_cost$npv), col="cyan") + 
-  theme_bw() +
-  labs(x = "Net Present Value", y = "Frequency") + 
-  ggtitle("Net Present Value Across Cost Parameter Uncertainty") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
+  geom_histogram(color = "grey90", bins = 35) +
+    geom_vline(xintercept=mean(both_cost$npv), col="cyan") + 
+    theme_bw() +
+    labs(x = "Net Present Value", y = "Frequency") + 
+    ggtitle("Net Present Value Across Cost Parameter Uncertainty") +
+    theme(axis.title = element_text(size = 12, face = "bold"))
+
+## Plotting npv against C1 and coloring by p
+npv_v_C1_p <- ggplot(both_cost, aes(C1,npv, color = p)) +
+  geom_point(alpha = 0.7) + 
+    scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
+    theme_bw() +
+    labs(x = "C1", y = "NPV", color = "p") + 
+    ggtitle("NPV versus C1 across varying p") + 
+    theme(axis.title = element_text(size = 12, face = "bold"))
+## Plotting npv against p and coloring by C1
+npv_v_p_C1 <- ggplot(both_cost, aes(p,npv, color = C1)) +
+  geom_point(alpha = 0.7) +
+    scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
+    theme_bw() +
+    labs(color = "C1", y = "NPV", x = "p")+ 
+    ggtitle("NPV versus p across varying C1") + 
+    theme(axis.title = element_text(size = 12, face = "bold"))
+## Putting my two plots into a grid so they look prettier
+cowplot::plot_grid(npv_v_C1_p, npv_v_p_C1,
+                   ncol = 1,
+                   align = "v",
+                   labels = "AUTO")
 
 ## Plotting npv against C2 and coloring by p
-npv_v_c2_p <- ggplot(both_cost, aes(C2,npv, color = p)) + 
+npv_v_C2_p <- ggplot(both_cost, aes(C2,npv, color = p)) +
   geom_point(alpha = 0.7) + 
-  scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
-  theme_bw() +
-  labs(x = "C2", y = "NPV", color = "p") + 
-  ggtitle("NPV versus C2 across varying p") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
-## Plotting conductance against p and coloring by C2
-npv_v_p_c2 <- ggplot(both_cost, aes(p,npv, color = C2)) + 
-  geom_point(alpha = 0.7) + 
-  scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
-  theme_bw() +
-  labs(color = "C2", y = "NPV", x = "p")+ 
-  ggtitle("NPV versus p across varying C2") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
+    scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
+    theme_bw() +
+    labs(x = "C2", y = "NPV", color = "p") + 
+    ggtitle("NPV versus C2 across varying p") + 
+    theme(axis.title = element_text(size = 12, face = "bold"))
+## Plotting npv against p and coloring by C2
+npv_v_p_C2 <- ggplot(both_cost, aes(p,npv, color = C2)) +
+  geom_point(alpha = 0.7) +
+    scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
+    theme_bw() +
+    labs(color = "C2", y = "NPV", x = "p")+ 
+    ggtitle("NPV versus p across varying C2") + 
+    theme(axis.title = element_text(size = 12, face = "bold"))
 ## Putting my two plots into a grid so they look prettier
-cowplot::plot_grid(npv_v_c2_p, npv_v_p_c2,
-          ncol = 1,
-          align = "v",
-          labels = "AUTO")
-
+cowplot::plot_grid(npv_v_C2_p, npv_v_p_C2,
+                   ncol = 1,
+                   align = "v",
+                   labels = "AUTO")
 # ggsave(here::here("plots/npv_v_c2_p.png"), npv_v_c2_p)
 # ggsave(here::here("plots/npv_v_p_c2.png"), npv_v_p_c2)
 # ggsave(here::here("plots/npv_uncertainty_cost.png"), npv_uncertainty_cost)
 ```
 
-
 ### Wellfare Term and its effect on Alpha 
 
 ```{r}
 
-parms1 = cbind.data.frame(beta=runif(1000, min=0, max=1),
-                          phi=rnorm(1000,mean=0.005, sd=(0.005*0.1)))
+parms1 = cbind.data.frame(beta=runif(500, min=0, max=1),
+                          phi=runif(500, min=0.0025, max=0.018))
 
-parms2 = cbind.data.frame(beta=runif(1000, min=0, max=1),
-                          phi=rnorm(1000,mean=0.005, sd=(0.005*0.1)))
+parms2 = cbind.data.frame(beta=runif(500, min=0, max=1),
+                          phi=runif(500, min=0.0025, max=0.018))
 
 sens_P <- sobolSalt(model = NULL, parms1, parms2, nboot=300)
 
@@ -485,165 +612,168 @@ colnames(sens_P$X)=c("beta", "phi")
 
 sobolparameters = c(
   # Biological parameters
-  mu=0.43, chi=0.5, 
+  mu=0.43, chi=0.5,
   gamma=1, v=1,
   # Economic Parameters
-  qD=0.00000294, qS=0.00000147, 
+  qD=0.00000294, qS=0.00000147,
   C1=0.060, C2=0.045, C3=0.040, C=0.045, p=500,
-  # beta=0.5, phi=0.005, 
+  # beta=0.5, phi=0.005,
   discount=0.05)
+
+# first_row = as.data.frame(sens_P$X)[1:5,]
 
 beta_wrapper <- function(beta, phi, funk, confunk, state, time, params, indat=NULL, rtn_catch=FALSE, rtn_npv=TRUE, ban=FALSE, wrap_npv=TRUE, wrap_sol=FALSE) {
   
+  cat("Beta = ", beta, "\n Phi = ", phi, "\n")
   sob = c(beta=beta, phi=phi)
   sob =log(sob)
   parms = c(params, sob)
-  
-  local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
-  options=list("algorithm"="NLOPT_LN_AUGLAG",
-               xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
 
+  
+  local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-6)
+  options=list("algorithm"="NLOPT_LN_AUGLAG", xtol_rel=1e-6,maxeval=16000,"local_opts"=local_opts)
+  
   npvobj=nloptr(x0 = 0.1,
-                    eval_f = funk,
+                eval_f = funk,
                     opts = options,
                     lb = 0,
                     ub = 1,
                     eval_g_ineq=confunk,
                     state=state,
-                    time=time, 
+                    time=time,
                     params=parms,
                     rtn_catch=FALSE,
                     rtn_npv=TRUE,
                     ban=FALSE,
-                    indat=NULL
-                    )
+                    indat=NULL)
+  
   out=npvobj$solution
   npv=-npvobj$objective
-  
-  if(wrap_npv == TRUE & wrap_sol == FALSE ) {
-   return(npv) 
-  } else if(wrap_npv == FALSE & wrap_sol == TRUE) {
-    return(out)
-  }
-  
+  cat("Alpha = ", out, "\n NPV = ", npv, "\n")
+
+  return(list(out=out, npv=npv))
 }
 
+plan(multisession, workers = availableCores() - 1)
+
 sens_npv_obj <- as.data.frame(sens_P$X) %>% 
-  rowwise() %>% 
-  pmap(beta_wrapper,
+    future_pmap(beta_wrapper,
        funk=interaction_LL,
        confunk=constraint_fx,
-       state=best2$par,
-       time=10, 
+       state=log(best2par),
+       time=10,
        params=log(sobolparameters),
        indat=NULL,
-       rtn_catch = FALSE, 
+       rtn_catch = FALSE,
        rtn_npv=TRUE,
-       ban=FALSE, 
-       wrap_npv=TRUE, 
+       ban=FALSE,
+       wrap_npv=TRUE,
        wrap_sol=FALSE)
 
-sens_npv_result = unlist(sens_npv_obj)
+plan(sequential) 
 
-range(sens_npv_result)
+unlister = function(sens_obj, rtn_npv=TRUE) {
+  out=vector(mode="numeric", length=0)
+  npv=vector(mode="numeric", length=0)
+  for(i in 1:length(sens_obj)) {
+    out[i] = sens_obj[[i]]$out
+    npv[i] = sens_obj[[i]]$npv
+  }
+  if(rtn_npv == TRUE) {
+    return(npv)
+  } else if(rtn_npv == FALSE) {
+    return(out)
+  }
+}
 
-sens_npv_eff = sensitivity::tell(sens_P, sens_npv_result, sens_result.names = "npv")
+npv = unlister(sens_npv_obj, rtn_npv=TRUE)
+out = unlister(sens_npv_obj, rtn_npv=FALSE)
+range(npv)
+range(out)
+
+sens_npv_eff = sensitivity::tell(sens_P, npv, sens_result.names="npv")
 
 sens_npv_eff$S
 sens_npv_eff$T
 
 print(sens_npv_eff)
 
-sens_alpha_obj <- as.data.frame(sens_P$X) %>% 
-  rowwise() %>% 
-  pmap(beta_wrapper,
-       funk=interaction_LL,
-       confunk=constraint_fx,
-       state=best2$par,
-       time=10, 
-       params=log(sobolparameters),
-       indat=NULL,
-       rtn_catch = FALSE, 
-       rtn_npv=TRUE,
-       ban=FALSE, 
-       wrap_npv=FALSE, 
-       wrap_sol=TRUE)
+## Only include this if alpha has a range of values... it doesnt as it stands 
 
-sens_alpha_result = unlist(sens_alpha_obj)
-
-range(sens_alpha_result)
-
-sens_alpha_eff = sensitivity::tell(sens_P, sens_alpha_result, sens_result.names = "alpha")
-
-sens_alpha_eff$S
-sens_alpha_eff$T
+sens_alpha_eff = sensitivity::tell(sens_P, out, sens_result.names = "alpha")
+# 
+# sens_alpha_eff$S
+# sens_alpha_eff$T
 
 sens_parameters = as.data.frame(sens_P$X)
 
-both = cbind.data.frame(sens_parameters, npv=sens_npv_eff$y, alpha=sens_alpha_eff$y)
+both = cbind.data.frame(sens_parameters, npv=sens_npv_eff$y
+                        , alpha=sens_alpha_eff$y
+                        )
 
 npv_uncertainty_wfare <- ggplot(both, aes(x=npv)) +
-  geom_histogram(color = "grey90", bins = 35) + 
-  geom_vline(xintercept=mean(both$npv), col="cyan") + 
-  theme_bw() +
-  labs(x = "Net Present Value", y = "Frequency") + 
-  ggtitle("Net Present Value Across Cost Parameter Uncertainty") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
-alpha_uncertainty_wfare <- ggplot(both, aes(x=alpha)) +
-  geom_histogram(color = "grey90", bins = 35) + 
-  geom_vline(xintercept=mean(both$alpha), col="cyan") + 
-  theme_bw() +
-  labs(x = "Alpha", y = "Frequency") + 
-  ggtitle("Alpha Across Phi and Beta Parameter Uncertainty") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
+  geom_histogram(color = "grey90", bins = 35) +
+    geom_vline(xintercept=mean(both$npv), col="cyan") +
+    theme_bw() +
+    labs(x = "Net Present Value", y = "Frequency") + 
+    ggtitle("Net Present Value Across Cost Parameter Uncertainty") +
+    theme(axis.title = element_text(size = 12, face = "bold"))
+  
+  
+# alpha_uncertainty_wfare <- ggplot(both, aes(x=alpha)) +
+#   geom_histogram(color = "grey90", bins = 35) +
+#     geom_vline(xintercept=mean(both$alpha), col="cyan") +
+#     theme_bw() +
+#     labs(x = "Alpha", y = "Frequency") +
+#     ggtitle("Alpha Across Phi and Beta Parameter Uncertainty") +
+#     theme(axis.title = element_text(size = 12, face = "bold"))
+  
 ## Plotting npv against beta and coloring by phi
 npv_v_beta_phi <- ggplot(both, aes(beta,npv, color = phi)) + 
   geom_point(alpha = 0.7) + 
-  scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
-  theme_bw() +
-  labs(x = "Beta", y = "NPV", color = "Phi") + 
-  ggtitle("NPV versus Beta across varying Phi") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
+    scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
+    theme_bw() +
+    labs(x = "Beta", y = "NPV", color = "Phi") + 
+    ggtitle("NPV versus Beta across varying Phi") + 
+    theme(axis.title = element_text(size = 12, face = "bold"))
+  
 ## Plotting npv against phi and coloring by beta
-npv_v_phi_beta <- ggplot(both, aes(phi,npv, color = beta)) + 
-  geom_point(alpha = 0.7) + 
-  scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
-  theme_bw() +
-  labs(color = "Beta", y = "NPV", x = "Phi")+ 
-  ggtitle("NPV versus Phi across varying Beta") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
-## Plotting npv against beta and coloring by phi
-alpha_v_beta_phi <- ggplot(both, aes(beta,alpha, color = phi)) + 
-  geom_point(alpha = 0.7) + 
-  scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
-  theme_bw() +
-  labs(x = "Beta", y = "Alpha", color = "Phi") + 
-  ggtitle("Alpha versus beta across varying Phi") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
-## Plotting npv against phi and coloring by beta
-alpha_v_phi_beta <- ggplot(both, aes(phi,alpha, color = beta)) + 
-  geom_point(alpha = 0.7) + 
-  scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
-  theme_bw() +
-  labs(color = "Beta", y = "Alpha", x = "Phi")+ 
-  ggtitle("Alpha versus Phi across varying Beta") + 
-  theme(axis.title = element_text(size = 12, face = "bold"))
-
+npv_v_phi_beta <- ggplot(both, aes(phi,npv, color = beta)) +
+  geom_point(alpha = 0.7) +
+    scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
+    theme_bw() +
+    labs(color = "Beta", y = "NPV", x = "Phi")+ 
+    ggtitle("NPV versus Phi across varying Beta") +
+    theme(axis.title = element_text(size = 12, face = "bold"))
+  
+# ## Plotting npv against beta and coloring by phi
+# alpha_v_beta_phi <- ggplot(both, aes(beta,alpha, color = phi)) +
+#   geom_point(alpha = 0.7) +
+#     scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
+#     theme_bw() +
+#     labs(x = "Beta", y = "Alpha", color = "Phi") +
+#     ggtitle("Alpha versus beta across varying Phi") +
+#     theme(axis.title = element_text(size = 12, face = "bold"))
+# 
+# ## Plotting npv against phi and coloring by beta
+# alpha_v_phi_beta <- ggplot(both, aes(phi,alpha, color = beta)) +
+#   geom_point(alpha = 0.7) +
+#     scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
+#     theme_bw() +
+#     labs(color = "Beta", y = "Alpha", x = "Phi")+
+#     ggtitle("Alpha versus Phi across varying Beta") +
+#     theme(axis.title = element_text(size = 12, face = "bold"))
+  
 ## Putting my two plots into a grid so they look prettier
 cowplot::plot_grid(npv_v_beta_phi, npv_v_phi_beta,
-          ncol = 1,
-          align = "v",
-          labels = "AUTO")
+                   ncol = 1,
+                   align = "v",
+                   labels = "AUTO")
 
-cowplot::plot_grid(alpha_v_beta_phi, alpha_v_phi_beta,
-          ncol = 1,
-          align = "v",
-          labels = "AUTO")
+# cowplot::plot_grid(alpha_v_beta_phi, alpha_v_phi_beta,
+#                    ncol = 1,
+#                    align = "v",
+#                    labels = "AUTO")
 
 # ggsave(here::here("plots/npv_uncertainty_wfare.png"), npv_uncertainty_wfare)
 # ggsave(here::here("plots/alpha_uncertainty_wfare.png"), alpha_uncertainty_wfare)
@@ -652,32 +782,3 @@ cowplot::plot_grid(alpha_v_beta_phi, alpha_v_phi_beta,
 # ggsave(here::here("plots/alpha_v_beta_phi.png"), alpha_v_beta_phi)
 # ggsave(here::here("plots/alpha_v_phi_beta.png"), alpha_v_phi_beta)
 ```
-
-
-### Nloptr tp calibrate?? wtf am i doing its so late 
-
-```{r}
-## Need new inequality constraint so that I can bound the parameters. All will have lower bounds specified though so maybe can just use that?? Will do that first ## Need interaction3.R which is going to apply all of the choices to the mofuckin function.. but actually its going to do it in sequence so it might not work 
-state
-newstate
-calibrate = nloptr(x0 = log(9000, 10000, 6000, 10000, 12000, 2000, 10000, 0.11),
-                    eval_f = negativeLLcalib,
-                    opts = options,
-                    lb = log(3638, 9807, 5158, 9784, 4307, 1520, 3981, 0.1),
-                    ub = log(c(15000, 15000, 10000,
-                               25761.151, 25378.981, 15071.943,
-                               26076.548, 0.7)), 
-                    # eval_g_ineq=constraint_fx,
-                    funk=interaction_calib,
-                    logobs=log(catch_nafaa[, "catch"]$catch),
-                    fee=0.1,
-                    indat=catch_nafaa,
-                   time=5,
-                    params=log(parameters),
-                    rtn_catch=TRUE,
-                    rtn_npv=FALSE,
-                    )
-
-
-```
-

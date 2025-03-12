@@ -33,13 +33,13 @@ interaction_LL = function(choice, state, time, params, indat=NULL, rtn_catch=TRU
   PIS=vector(mode="numeric", length=0)
   catch=vector(mode="numeric", length=0)
   
-  params = c(params, "fee" = as.numeric(choice))
-  
   params = exp(params)
+  
+  # params = c(params, "fee" = as.numeric(choice))
   
   state=exp(state)
   
-  with(as.list(c(state, params)), {
+  with(as.list(c(state, params, choice)), {
     
     B1[1] = B1i
     B2[1] = B2i
@@ -59,36 +59,45 @@ interaction_LL = function(choice, state, time, params, indat=NULL, rtn_catch=TRU
     
     HD[1] = qD*B1[1]*E[1]
     
-    benefits[1] = ((beta)*(PIS[1])) + ((1-beta)*fee*p*HD[1])
+    benefits[1] = ((beta)*(PIS[1])) + ((1-beta)*choice*p*HD[1])
     
     catch[1] = HS[1] + HD[1]
     
     for(t in 2:time) {
       
-      
       recruit <- v*B3[t-1]
-      
-      # spawn = (B1[t-1]+B2[t-1])+(0.45*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/40000))) # Replaces (gamma*(B1[t-1]+B2[t-1]))
-      
-      # recruit = if(recruit < 0) 0 else recruit
       
       B1[t] <- B1[t-1] + (-mu*B1[t-1])-(qS*B1[t-1]*e1[t-1])-(qD*B1[t-1]*E[t-1])+(recruit*(chi))
       
       B2[t] <- B2[t-1] + (-mu*B2[t-1])-(qS*B2[t-1]*e2[t-1])+(recruit*(1-chi))
       
-      B3[t] <- B3[t-1] + (gamma*(B1[t-1]+B2[t-1])) - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
-      # (gamma*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/K)))
+      B3[t] <- B3[t-1] + (0.45*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K))))) - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
+      # (gamma*(B1[t-1]+B2[t-1])); (gamma*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/K))); (1*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K)))))
       
       e1[t] <- (phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1])) ) + e1[t-1] 
       
       e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1] 
       
+      # if((phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))) < 0) {
+      # e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1] + (-(phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))))
+      # } else if((phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))) >= 0) {
+        # e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1]
+      # }
+      
       e3[t] <- (phi*(-((C3*e3[t-1])^2)+(p*qS*B3[t-1]*e3[t-1]))) + e3[t-1] 
+      
+      # if(ban == TRUE) {
+      #   E[t] = 0
+      # } else if(fee > 0.9) {
+      #   E[t] = (1*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # } else {
+      #   E[t] <- (phi*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # }
       
       if(ban == TRUE) {
         E[t] = 0
       } else {
-        E[t] <- (phi*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1] 
+        E[t] <- (phi*(-((C*E[t-1])^2)+((1-choice)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
       }
       
       HS1[t] = (qS*B1[t]*e1[t])
@@ -103,7 +112,7 @@ interaction_LL = function(choice, state, time, params, indat=NULL, rtn_catch=TRU
       
       HD[t] <- qD*B1[t]*E[t]
       
-      benefits[t] <- (beta*PIS[t]) + ((1-beta)*fee*p*HD[t])
+      benefits[t] <- (beta*PIS[t]) + ((1-beta)*choice*p*HD[t])
       
       catch[t] = HS[t] + HD[t]
     }
@@ -111,6 +120,7 @@ interaction_LL = function(choice, state, time, params, indat=NULL, rtn_catch=TRU
     t=seq(from=1, to =time, by=1)
     rho = 1/(1+discount)
     pv = (rho^t)*benefits
+    pvPIS= (rho^t)*PIS
     npv=sum(pv)
     
     if(rtn_npv == TRUE) {
@@ -118,7 +128,7 @@ interaction_LL = function(choice, state, time, params, indat=NULL, rtn_catch=TRU
     } else if(rtn_catch == TRUE) {
       return(list(log(catch)))
     } else {
-      return(tibble(time=t, B1=B1, B2=B2, B3=B3, e1=e1, e2=e2, e3=e3, E=E, HS=HS, HD=HD, PV=pv))
+      return(tibble(time=t, B1=B1, B2=B2, B3=B3, e1=e1, e2=e2, e3=e3, E=E, HS1=HS1, HS2=HS2, HS3=HS3, HS=HS, HD=HD, PV=pv, pvPIS=pvPIS, PIS=PIS))
     }
   })
 }

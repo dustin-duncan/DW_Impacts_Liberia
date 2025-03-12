@@ -35,13 +35,13 @@ constraint_fx = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE
   conb2=vector(mode="numeric", length=0)
   conb3=vector(mode="numeric", length=0)
   
-  params = c(params, "fee" = choice)
-  
   params = exp(params)
+  
+  # params = c(params, "fee" = as.numeric(choice))
   
   state=exp(state)
   
-  with(as.list(c(state, params)), {
+  with(as.list(c(state, params, choice)), {
     
     B1[1] = B1i
     B2[1] = B2i
@@ -61,7 +61,7 @@ constraint_fx = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE
     
     HD[1] = qD*B1[1]*E[1]
     
-    benefits[1] = ((beta)*(PIS[1])) + ((1-beta)*fee*p*HD[1])
+    benefits[1] = ((beta)*(PIS[1])) + ((1-beta)*choice*p*HD[1])
     
     catch[1] = HS[1] + HD[1]
     
@@ -80,19 +80,33 @@ constraint_fx = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE
       
       B2[t] <- B2[t-1] + (-mu*B2[t-1])-(qS*B2[t-1]*e2[t-1])+(recruit*chi)
       
-      B3[t] <- B3[t-1] + (gamma*(B1[t-1]+B2[t-1])) - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
-      # -(eta*(B3[t-1]^2))
+      B3[t] <- B3[t-1] + (0.45*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K))))) - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
+      # (gamma*(B1[t-1]+B2[t-1])); (gamma*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/K))); (1*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K)))))
       
       e1[t] <- (phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1])) ) + e1[t-1] 
       
       e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1] 
       
+      # if((phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))) < 0) {
+      # e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1] + (-(phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))))
+      # } else if((phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))) >= 0) {
+      # e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1]
+      # }
+      
       e3[t] <- (phi*(-((C3*e3[t-1])^2)+(p*qS*B3[t-1]*e3[t-1]))) + e3[t-1] 
+      
+      # if(ban == TRUE) {
+      #   E[t] = 0
+      # } else if(fee > 0.9) {
+      #   E[t] = (1*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # } else {
+      #   E[t] <- (phi*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # }
       
       if(ban == TRUE) {
         E[t] = 0
       } else {
-        E[t] <- (phi*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1] 
+        E[t] <- (phi*(-((C*E[t-1])^2)+((1-choice)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
       }
       
       HS1[t] = (qS*B1[t]*e1[t])
@@ -107,13 +121,13 @@ constraint_fx = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE
       
       HD[t] <- qD*B1[t]*E[t]
       
-      benefits[t] <- (beta*PIS[t]) + ((1-beta)*fee*p*HD[t])
+      benefits[t] <- (beta*PIS[t]) + ((1-beta)*choice*p*HD[t])
       
       catch[t] = HS[t] + HD[t]
       
       conb1[t] = (HS1[t]+HD[t]) - B1[t]
       conb2[t] = HS2[t] - B2[t]
-      conb3[t] = (HS3[t]+(v*B3[t])-(gamma*(B1[t]+B2[t]))) - B3[t]
+      conb3[t] = (HS3[t]+(v*B3[t])-(0.45*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K)))))) - B3[t]
     }
     return(c(conb1, conb2, conb3))
   })
