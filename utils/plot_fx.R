@@ -51,21 +51,26 @@ ddplot = function(df, bmsy=FALSE, rtn_plot=NULL) {
   
   plot <- grid.arrange(plotB, plotE, plotH, plotP, ncol=2)
   
-  if(bmsy == FALSE & is.null(rtn_plot)) {
+  if(bmsy == FALSE) {
     return(plot)
-  } else if(!is.null(rtn_plot)) {
-    return(plotBmsy)
-  } else if(bmsy == FALSE & rtn_plot == "B"){
-    return(plotB)
-  } else if(bmsy == FALSE & rtn_plot == "Bmsy"){
-    return(plotBmsy)
-  } else if(bmsy == FALSE & rtn_plot == "E"){
-    return(plotE)
-  } else if(bmsy == FALSE & rtn_plot == "H"){
-    return(plotH)
-  } else if(bmsy == FALSE & rtn_plot == "P"){
-    return(plotP)
+  } else {
+      return(plotBmsy)
   }
+  # if(bmsy == FALSE & is.null(rtn_plot)) {
+  #   return(plot)
+  # } else if(!is.null(rtn_plot)) {
+  #   return(plotBmsy)
+  # } else if(bmsy == FALSE & rtn_plot == "B"){
+  #   return(plotB)
+  # } else if(bmsy == FALSE & rtn_plot == "Bmsy"){
+  #   return(plotBmsy)
+  # } else if(bmsy == FALSE & rtn_plot == "E"){
+  #   return(plotE)
+  # } else if(bmsy == FALSE & rtn_plot == "H"){
+  #   return(plotH)
+  # } else if(bmsy == FALSE & rtn_plot == "P"){
+  #   return(plotP)
+  # }
   
   
 }

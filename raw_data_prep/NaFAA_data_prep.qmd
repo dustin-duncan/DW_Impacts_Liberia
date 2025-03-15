@@ -59,7 +59,7 @@ sum(dwf_aurita$Catch) == grand_total
 
 ```
 
-Tidying one last bit then writing to csv as most recent timeseries 
+Tidying one last bit then writing to csv as most recent timeseries
 
 ```{r}
 # Need: Country Fleet Year Catch_tonnes, then write it out as csv. The other data is aggregated for Sardinella spp. so thats what will be used regardless
@@ -81,7 +81,6 @@ Nafaa_dwf_writeout <- dwf_aurita %>%
 
 # Going to save this for later writeout once I have bound it with the ssf data 
 ```
-
 
 ## Artisanal Fleet Dataprep
 
@@ -110,7 +109,7 @@ sum(ssf_aurita$Catch) == grand_total
 
 ```
 
-### Writing out the 2018 to 2023 timeseries as csv 
+### Writing out the 2018 to 2023 timeseries as csv
 
 ```{r}
 head(ssf_aurita)
@@ -133,8 +132,6 @@ Nafaa_ag_writeout = Nafaa_dwf_writeout %>%
 # write_csv(Nafaa_ag_writeout, here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
 # test = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
 ```
-
-
 
 ## Combining NaFAA data with catch timeseries from 1990-2017 from FAO.
 
@@ -283,6 +280,7 @@ ssf_mean_k <- mean(ssf_viable_k_values)*1000
 spp_in_both_dwf <- dwf_ts %>% 
   select(Species, paste0("20", seq(from=18,to=23))) %>% 
   filter(Species %in% ssf_ts$Species) %>% 
+  filter(!Species %in% "Grand Total") %>%
   na.omit()
 spp_in_both_ssf <- ssf_ts %>% 
   select(Species, paste0("20", seq(from=18,to=23))) %>% 
@@ -290,15 +288,103 @@ spp_in_both_ssf <- ssf_ts %>%
   na.omit()
 
 overall_spp_in_both <- spp_in_both_ssf %>% 
-  filter(Species %in% spp_in_both_dwf$Species)
+  filter(Species %in% spp_in_both_dwf$Species) 
 
 spp_vector <- overall_spp_in_both$Species[1:12]
 
 ssf_test <- ssf_ts %>% 
-  filter(Species %in% spp_vector)
+  filter(Species %in% spp_vector) %>% 
+  mutate(fleet="SSF")
 
 dwf_test <- dwf_ts %>% 
-  filter(Species %in% spp_vector)
+  filter(Species %in% spp_vector) %>% 
+  mutate(fleet="DWF") 
+
+## Leaving this but this is only here to write out plots for CI
+# both_catch = ssf_test %>% 
+#   rbind(dwf_test) %>% 
+#   select(-c(`Grand Total`)) %>% 
+#   pivot_longer(cols =c(`2018`, `2019`, `2020`, `2021`, `2022`, `2023`), names_to="year", values_to="catch_kg") %>% 
+#   mutate(year = as.numeric(year))
+# 
+# 
+# spp_list = unique(both_catch$Species) 
+# spp_list = spp_list[c(1:8,10:11)]
+# 
+# Brotula_barbata =ggplot(filter(both_catch, Species %in% spp_list[1]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[1]))
+# 
+# Chloroscombrus_chrysurus = ggplot(filter(both_catch, Species %in% spp_list[2]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[2]))
+# 
+# Cynoglossus_senegalensis = ggplot(filter(both_catch, Species %in% spp_list[3]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[3]))
+# 
+# Dasyatis_margarita = ggplot(filter(both_catch, Species %in% spp_list[4]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[4]))
+# 
+# Galeoides_decadactylus = ggplot(filter(both_catch, Species %in% spp_list[5]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[5]))
+# 
+# Osteichthyes = ggplot(filter(both_catch, Species %in% spp_list[6]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[6]))
+# 
+# Pomadasys_jubelini = ggplot(filter(both_catch, Species %in% spp_list[7]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[7]))
+# 
+# Pseudotolithus_typus = ggplot(filter(both_catch, Species %in% spp_list[8]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[8]))
+# 
+# new_sard = Nafaa_ag_writeout %>% 
+#   mutate(Species = "Sardinella spp",
+#          catch_kg = Catch_tonnes*1000,
+#          fleet = case_when(
+#            Fleet == "Artisanal" ~ "SSF", 
+#            Fleet == "Industrial" ~ "DWF"
+#          ))
+# 
+# Sardinella_spp = ggplot(new_sard, aes(x=Year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle("Sardinella spp.")
+# 
+# Scomberomorus_tritor = ggplot(filter(both_catch, Species %in% spp_list[10]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[10]))
+# 
+# Sphyraena_guachancho = ggplot(filter(both_catch, Species %in% spp_list[11]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[11]))
+# 
+# Trichiurus_lepturus = ggplot(filter(both_catch, Species %in% spp_list[12]), aes(x=year, y = catch_kg, color=fleet)) + 
+#   geom_line() +
+#   labs(x = "Year", y = "Catch (kg)") +
+#   ggtitle(paste(spp_list[12]))
+# 
+# for(i in 1:length(spp_list)) {
+#   plot = str_replace(spp_list[i], " ", "_")
+#   ggsave(filename=paste0("../plots/", plot, ".png"), plot=get(plot))
+# }
+# 
+# ggsave(filename="../plots/Sardinella_spp.png", plot=Sardinella_spp)
 
 print(spp_vector)
 resilience_table <- resilience(species=spp_vector[1:12])

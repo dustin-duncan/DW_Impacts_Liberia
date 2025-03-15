@@ -1,5 +1,5 @@
 ---
-title: "SPM_bio_model"
+title: "bio_experiment"
 author: "Dustin Duncan"
 format: html
 editor: visual
@@ -20,8 +20,6 @@ library(sensitivity)
 library(purrr)
 # install.packages("furrr")
 library(furrr)
-# install.packages("scales")
-library(scales)
 ```
 
 ### Packages Used
@@ -819,16 +817,12 @@ plotE2 <- ggplot(dfE2) +
   
 dfH = tenyrbautab %>% 
     select(-c(B1, B2, B3, e1, e2, e3, E, PV, HS1, HS2, HS3, PIS, pvPIS)) %>% 
-    pivot_longer(cols=c(-time), names_to="Fleet", values_to="Harvest") %>% 
-  mutate(Fleet = case_when(
-    Fleet == "HS" ~ "SSF",
-    Fleet == "HD" ~ "DWF"
-  ))
+    pivot_longer(cols=c(-time), names_to="Fleet", values_to="Harvest")
 
 plotH <- ggplot(dfH) +
     geom_line(aes(x = time, y = Harvest, color=Fleet)) + 
-    labs(x = "Time (years)", y = "Catch (tonnes)", color = "Fleet")+ 
-  ggtitle("Business as Usual Catch over Time") +
+    labs(x = "Time", y = "Harvest", color = "Fleet")+ 
+  ggtitle("Business as Usual Harvest over Time") +
     theme_bw()
 
 plotP <- ggplot(tenyrbautab) + 
@@ -923,16 +917,12 @@ plotE2 <- ggplot(dfE2) +
   
 dfH = tenyropttab %>% 
     select(-c(B1, B2, B3, e1, e2, e3, E, PV, HS1, HS2, HS3, PIS, pvPIS)) %>% 
-    pivot_longer(cols=c(-time), names_to="Fleet", values_to="Harvest") %>% 
-  mutate(Fleet = case_when(
-    Fleet == "HS" ~ "SSF",
-    Fleet == "HD" ~ "DWF"
-  ))
+    pivot_longer(cols=c(-time), names_to="Fleet", values_to="Harvest")
 
 plotH <- ggplot(dfH) +
     geom_line(aes(x = time, y = Harvest, color=Fleet)) + 
-    labs(x = "Time (years)", y = "Catch (tonnes)", color = "Fleet")+ 
-  ggtitle("Optimal Solution Catch over Time") +
+    labs(x = "Time", y = "Harvest", color = "Fleet")+ 
+  ggtitle("Optimal Solution Harvest over Time") +
     theme_bw()
 
 plotP <- ggplot(tenyropttab) + 
@@ -1028,16 +1018,12 @@ plotE2 <- ggplot(dfE2) +
   
 dfH = tenyrbantab %>% 
     select(-c(B1, B2, B3, e1, e2, e3, E, PV, HS1, HS2, HS3, PIS, pvPIS)) %>% 
-    pivot_longer(cols=c(-time), names_to="Fleet", values_to="Harvest") %>% 
-  mutate(Fleet = case_when(
-    Fleet == "HS" ~ "SSF",
-    Fleet == "HD" ~ "DWF"
-  ))
+    pivot_longer(cols=c(-time), names_to="Fleet", values_to="Harvest")
 
 plotH <- ggplot(dfH) +
     geom_line(aes(x = time, y = Harvest, color=Fleet)) + 
-    labs(x = "Time (years)", y = "Catch (tonnes)", color = "Fleet")+ 
-  ggtitle("Ban Scenario Catch over Time") +
+    labs(x = "Time", y = "Harvest", color = "Fleet")+ 
+  ggtitle("Ban Scenario Harvest over Time") +
     theme_bw()
 
 plotP <- ggplot(tenyrbantab) + 
@@ -1209,13 +1195,9 @@ sens_parameters = as.data.frame(sens_P$X)
 
 both_cost = cbind.data.frame(sens_parameters, npv=sens_eff$y)
 
-mean_label = round(mean(both_cost$npv))
-
 npv_uncertainty_cost <- ggplot(both_cost, aes(x=npv)) +
   geom_histogram(color = "grey90", bins = 35) +
-    geom_vline(xintercept=mean(both_cost$npv), col="cyan") +
-  geom_text(aes(x = (mean(both_cost$npv)-58000), y = 650, label = paste("Mean: $720,252"))) +
-  scale_x_continuous(labels = label_currency()) +
+    geom_vline(xintercept=mean(both_cost$npv), col="cyan") + 
     theme_bw() +
     labs(x = "Net Present Value", y = "Frequency") + 
     ggtitle("Net Present Value Across Cost Parameter Uncertainty") +
@@ -1225,21 +1207,17 @@ npv_uncertainty_cost <- ggplot(both_cost, aes(x=npv)) +
 npv_v_C1_p <- ggplot(both_cost, aes(C1,npv, color = p)) +
   geom_point(alpha = 0.7) + 
     scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
-  scale_x_continuous(labels = label_currency()) +
-  scale_y_continuous(labels = label_currency()) +
     theme_bw() +
-    labs(x = "C1 ($/f)", y = "NPV", color = " Price ($/tonne)") + 
-    ggtitle("NPV versus Zone 1 Fishing costs wtih \n varying Fish Price") + 
+    labs(x = "C1", y = "NPV", color = "p") + 
+    ggtitle("NPV versus C1 across varying p") + 
     theme(axis.title = element_text(size = 12, face = "bold"))
 ## Plotting npv against p and coloring by C1
 npv_v_p_C1 <- ggplot(both_cost, aes(p,npv, color = C1)) +
   geom_point(alpha = 0.7) +
     scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
-  scale_x_continuous(labels = label_currency()) +
-  scale_y_continuous(labels = label_currency()) +
     theme_bw() +
-    labs(color = "C1 ($/f)", y = "NPV", x = "Price ($/tonne)")+ 
-    ggtitle("NPV versus Fish Price with varying \n Zone 1 Fishing costs") + 
+    labs(color = "C1", y = "NPV", x = "p")+ 
+    ggtitle("NPV versus p across varying C1") + 
     theme(axis.title = element_text(size = 12, face = "bold"))
 ## Putting my two plots into a grid so they look prettier
 cowplot::plot_grid(npv_v_C1_p, npv_v_p_C1,
@@ -1251,31 +1229,25 @@ cowplot::plot_grid(npv_v_C1_p, npv_v_p_C1,
 npv_v_C2_p <- ggplot(both_cost, aes(C2,npv, color = p)) +
   geom_point(alpha = 0.7) + 
     scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
-  scale_x_continuous(labels = label_currency()) +
-  scale_y_continuous(labels = label_currency()) +
     theme_bw() +
-    labs(x = "C2 ($/f)", y = "NPV", color = "Price ($/tonne)") + 
-    ggtitle("NPV versus Zone 2 Fishing costs wtih \n varying Fish Price") + 
+    labs(x = "C2", y = "NPV", color = "p") + 
+    ggtitle("NPV versus C2 across varying p") + 
     theme(axis.title = element_text(size = 12, face = "bold"))
 ## Plotting npv against p and coloring by C2
 npv_v_p_C2 <- ggplot(both_cost, aes(p,npv, color = C2)) +
   geom_point(alpha = 0.7) +
     scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
-  scale_x_continuous(labels = label_currency()) +
-  scale_y_continuous(labels = label_currency()) +
     theme_bw() +
-    labs(color = "C2 ($/f)", y = "NPV", x = "Price ($/tonne)")+ 
-    ggtitle("NPV versus Fish Price with varying \n Zone 2 Fishing costs") + 
+    labs(color = "C2", y = "NPV", x = "p")+ 
+    ggtitle("NPV versus p across varying C2") + 
     theme(axis.title = element_text(size = 12, face = "bold"))
 ## Putting my two plots into a grid so they look prettier
 cowplot::plot_grid(npv_v_C2_p, npv_v_p_C2,
                    ncol = 1,
                    align = "v",
                    labels = "AUTO")
-# ggsave(here::here("plots/npv_v_c2_p.png"), npv_v_C2_p)
-# ggsave(here::here("plots/npv_v_p_c2.png"), npv_v_p_C2)
-# ggsave(here::here("plots/npv_v_c1_p.png"), npv_v_C1_p)
-# ggsave(here::here("plots/npv_v_p_c1.png"), npv_v_p_C1)
+# ggsave(here::here("plots/npv_v_c2_p.png"), npv_v_c2_p)
+# ggsave(here::here("plots/npv_v_p_c2.png"), npv_v_p_c2)
 # ggsave(here::here("plots/npv_uncertainty_cost.png"), npv_uncertainty_cost)
 ```
 
@@ -1379,13 +1351,10 @@ sens_parameters = as.data.frame(sens_P$X)
 both = cbind.data.frame(sens_parameters, npv=sens_npv_eff$y
                         # , alpha=sens_alpha_eff$y
                         )
-mean_label = round(mean(both$npv))
 
 npv_uncertainty_wfare <- ggplot(both, aes(x=npv)) +
   geom_histogram(color = "grey90", bins = 35) +
     geom_vline(xintercept=mean(both$npv), col="cyan") +
-  geom_text(aes(x = (mean(both$npv)-58000), y = 86, label = paste("Mean: $715,582"))) +
-  scale_x_continuous(labels = label_currency()) +
     theme_bw() +
     labs(x = "Net Present Value", y = "Frequency") + 
     ggtitle("Net Present Value Across Welfare Parameter Uncertainty") +
@@ -1395,20 +1364,18 @@ npv_uncertainty_wfare <- ggplot(both, aes(x=npv)) +
 npv_v_beta_phi <- ggplot(both, aes(beta,npv, color = phi)) + 
   geom_point(alpha = 0.7) + 
     scale_color_gradient2(low = "yellow", mid = "yellow3", high = "red3") +
-  scale_y_continuous(labels = label_currency()) +
     theme_bw() +
     labs(x = "Beta", y = "NPV", color = "Phi") + 
-    ggtitle("NPV versus Beta with varying Phi") + 
+    ggtitle("NPV versus Beta across varying Phi") + 
     theme(axis.title = element_text(size = 12, face = "bold"))
   
 ## Plotting npv against phi and coloring by beta
 npv_v_phi_beta <- ggplot(both, aes(phi,npv, color = beta)) +
   geom_point(alpha = 0.7) +
     scale_color_gradient2(low = "lightgreen", mid = "green3", high = "darkblue") +
-  scale_y_continuous(labels = label_currency()) +
     theme_bw() +
     labs(color = "Beta", y = "NPV", x = "Phi")+ 
-    ggtitle("NPV versus Phi with varying Beta") +
+    ggtitle("NPV versus Phi across varying Beta") +
     theme(axis.title = element_text(size = 12, face = "bold"))
 
 ## Putting my two plots into a grid so they look prettier
