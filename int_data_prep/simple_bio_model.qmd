@@ -88,18 +88,6 @@ spmdat3 = read.csv(here::here("data_int/data_lit/effort_Rousseau_bound_FAO_metri
             cpue = sum(cpue_day, na.rm=TRUE)) %>% 
     rbind(spmdat2)
 
-bsm_out = datalimited2::bsm(year=spmdata$year, 
-                            catch=spmdata$catch, 
-                            biomass=spmdata$cpue, 
-                            btype="CPUE", 
-                            r.low=0.35, r.hi=0.55
-                            # ,stb.low=0.4, stb.hi=0.7
-                            )
-
-plot_dlm(bsm_out)
-ref_pts = bsm_out[["ref_pts"]]
-ref_ts = bsm_out[["ref_ts"]]
-
 
 ## Values for K and initial biomass came from this estimate. As we can see compared to the above estimate, the catch data can be very influential on this model output
 bsm_out2 = datalimited2::bsm(year=spmdat3$year, 
@@ -113,6 +101,7 @@ bsm_out2 = datalimited2::bsm(year=spmdat3$year,
 plot_dlm(bsm_out2)
 ref_pts = bsm_out2[["ref_pts"]]
 ref_ts = bsm_out2[["ref_ts"]]
+?datalimited2::bsm
 ```
 
 $$
@@ -302,15 +291,19 @@ best2$message
 # best2par=c(B1i=13259, B2i=11205, B3i=6684, e1i=23950, e2i=25354, e3i=8289, Ei=13605, K=53855)
 # best2par=c(B1i=15000, B2i=12828, B3i=6343, e1i=17393, e2i=18150, e3i=7352, Ei=12516, K=53855)
 # best2par=c(B1i=15000, B2i=12819, B3i=6357, e1i=15971, e2i=16957, e3i=7305, Ei=10000, K=53855) 
-best2par = best2$par
-best2par['K'] = log(53855)
-best2par = exp(best2par)
+# best2par = best2$par
+# best2par['K'] = log(53855)
+# best2par = exp(best2par)
 # best3par=best2par
 ## Five year projection under business as usual
 
 fiveyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE, ban=FALSE)
 
 fiveyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE, ban=FALSE)
+
+fiveyr50tab = interaction_LL(choice=0.50, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+fiveyr50npv = -interaction_LL(choice=0.50, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+sum(fiveyr50tab$pvPIS)
 
 ## Five year projection under optimized fee structure 
 
@@ -662,19 +655,25 @@ plotP <- ggplot(fiveyrbantab) +
 ## ten year projection under business as usual
 
 tenyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
-# 
-# tenyrbautab2 = interaction_LL(choice=1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
-# 
-# eff_diff = tibble(time=tenyrbautab1$time, E_low=tenyrbautab1$E, E_high=tenyrbautab2$E, H_low=tenyrbautab1$HD, H_high=tenyrbautab2$HD)
-# 
-# ggplot(eff_diff) + 
-#   geom_line(aes(x=time, y=E_low), color="red") + 
-#   geom_line(aes(x=time, y=E_high), color="green")
-# ggplot(eff_diff) + 
-#   geom_line(aes(x=time, y=H_low), color="red") + 
-#   geom_line(aes(x=time, y=H_high), color="green")
 
 tenyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+
+
+# ## 25% fee 
+# 
+# tenyr25tab = interaction_LL(choice=0.25, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+# tenyr25npv = -interaction_LL(choice=0.25, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+
+## 50% fee
+
+tenyr50tab = interaction_LL(choice=0.50, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+tenyr50npv = -interaction_LL(choice=0.50, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+sum(tenyr50tab$pvPIS)
+
+# ## 75% fee 
+# 
+# tenyr75tab = interaction_LL(choice=0.75, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+# tenyr75npv = -interaction_LL(choice=0.75, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
 
 ## ten year projection under optimized fee structure 
 
@@ -717,6 +716,9 @@ ddplot(tenyrbantab, bmsy=TRUE)
 tenyrbautab1 = tenyrbautab %>% 
   mutate(scenario = "bau")
 
+tenyr50tab1 = tenyr50tab %>% 
+  mutate(scenario = "fifty")
+
 tenyrbantab1 = tenyrbantab %>% 
   mutate(scenario = "ban")
 
@@ -726,6 +728,7 @@ tenyropttab1 = tenyropttab %>%
 tenyrall = tenyrbautab1 %>% 
   rbind(tenyropttab1) %>% 
   rbind(tenyrbantab1) %>% 
+  rbind(tenyr50tab1) %>% 
   mutate(bbmsy = (B1+B2+B3)/26992)
 
 ## SSF total profit estimate 
@@ -735,7 +738,46 @@ tenyrprof = tibble("time" = seq(from=1,to=10),
                    "ban" = tenyrbantab1$pvPIS) %>% 
   pivot_longer(cols = -time, names_to="scenario", values_to="pv_profit") %>% 
   group_by(scenario) %>%
-  summarize(npv = sum(pv_profit))
+  summarize(npv = sum(pv_profit)) 
+
+tenyrbautab1 = tenyrbautab %>% 
+  mutate(scenario = "Business as Usual")
+
+tenyr50tab1 = tenyr50tab %>% 
+  mutate(scenario = "50% Fee")
+
+tenyrbantab1 = tenyrbantab %>% 
+  mutate(scenario = "Ban")
+
+tenyropttab1 = tenyropttab %>% 
+  mutate(scenario = "Optimization (100% Fee)")
+
+tenyrall = tenyrbautab1 %>% 
+  rbind(tenyropttab1) %>% 
+  rbind(tenyrbantab1) %>% 
+  rbind(tenyr50tab1) %>% 
+  mutate(bbmsy = (B1+B2+B3)/26992,
+         scenario = as.factor(scenario))  
+
+PVplot = ggplot(tenyrall, aes(x = time, y = PV, color = scenario)) + 
+  geom_line() + 
+  labs(x = "Year", y = "Present Value of Benefits (USD)", color="Scenario") + 
+  ggtitle("Projected Present Value of Benefits to NaFAA under Ten-Year \nTime Horizon") +
+  scale_x_continuous(breaks = seq(from=0, to=max(time), by=1)) +
+  theme_bw() + 
+  theme(legend.position = c(0.81, 0.7)) 
+
+# ggsave(here::here("plots/plotPV_10yr_all_report.png"), PVplot, width = 6.5, height = 3.5)
+
+Eplot = ggplot(tenyrall, aes(x = time, y = E, color = scenario)) + 
+  geom_line() + 
+  labs(x = "Year", y = "DWF Effort (fishing days)", color="Scenario") + 
+  ggtitle("Projected DWF Effort under Ten-Year Time Horizon") +
+  scale_x_continuous(breaks = seq(from=0, to=max(time), by=1)) +
+  theme_bw() + 
+  theme(legend.position = c(0.81, 0.3), legend.key.size = unit(.5, "cm")) 
+
+ggsave(here::here("plots/plotE_10yr_all_report.png"), Eplot, width = 6.5, height = 3.5)
 ```
 
 When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to to raise the price of the access fee to 100% again, leading to a net present value over a 10-year time period of \$720,837 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF, and similarly to the five year time horizon, lead them to eventually leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$234,627. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$14,131 compared to business as usual. 
@@ -1272,11 +1314,11 @@ cowplot::plot_grid(npv_v_C2_p, npv_v_p_C2,
                    ncol = 1,
                    align = "v",
                    labels = "AUTO")
-# ggsave(here::here("plots/npv_v_c2_p.png"), npv_v_C2_p)
-# ggsave(here::here("plots/npv_v_p_c2.png"), npv_v_p_C2)
-# ggsave(here::here("plots/npv_v_c1_p.png"), npv_v_C1_p)
-# ggsave(here::here("plots/npv_v_p_c1.png"), npv_v_p_C1)
-# ggsave(here::here("plots/npv_uncertainty_cost.png"), npv_uncertainty_cost)
+# ggsave(here::here("plots/npv_v_c2_p.png"), npv_v_C2_p, width = 6.5, height = 3.5)
+# ggsave(here::here("plots/npv_v_p_c2.png"), npv_v_p_C2, width = 6.5, height = 3.5)
+# ggsave(here::here("plots/npv_v_c1_p.png"), npv_v_C1_p, width = 6.5, height = 3.5)
+# ggsave(here::here("plots/npv_v_p_c1.png"), npv_v_p_C1, width = 6.5, height = 3.5)
+# ggsave(here::here("plots/npv_uncertainty_cost.png"), npv_uncertainty_cost, width = 6.5, height = 3.5)
 ```
 
 ### Wellfare Term and its effect on Alpha 
@@ -1449,7 +1491,7 @@ cowplot::plot_grid(npv_v_beta_phi, npv_v_phi_beta,
 #                    align = "v",
 #                    labels = "AUTO")
 
-# ggsave(here::here("plots/npv_uncertainty_wfare.png"), npv_uncertainty_wfare)
+ggsave(here::here("plots/npv_uncertainty_wfare.png"), npv_uncertainty_wfare, width = 6.5, height = 3.5)
 # ggsave(here::here("plots/alpha_uncertainty_wfare.png"), alpha_uncertainty_wfare)
 # ggsave(here::here("plots/npv_v_beta_phi.png"), npv_v_beta_phi)
 # ggsave(here::here("plots/npv_v_phi_beta.png"), npv_v_phi_beta)

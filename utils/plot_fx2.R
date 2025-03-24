@@ -12,7 +12,7 @@ ddplot2 = function(df, bmsy=FALSE) {
   
   
   dfE <- df %>% 
-    pivot_longer(cols = c(e, E), names_to="fleet", values_to="eff")
+    pivot_longer(cols = c(e1, E), names_to="fleet", values_to="eff")
   
   p2 <- ggplot(dfE, aes(x=time, y=eff, color=fleet)) + 
     geom_line()

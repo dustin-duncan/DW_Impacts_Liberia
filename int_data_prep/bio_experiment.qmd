@@ -113,55 +113,191 @@ ref_pts = bsm_out2[["ref_pts"]]
 ref_ts = bsm_out2[["ref_ts"]]
 ```
 
-$$
-\begin{align}
-&\text{Biological Parameters} \\ 
-\gamma &= \text{Annual production of juveniles as proportion } \\
-&~~~~~~\text{of adult stock biomass } \\ 
-\mu &= \text{Zone natural mortality rate } \mathrm{(year^{-1})} \\ 
-v &= \text{Proportion of juvenile biomass that} \\
-&~~~~~~\text{recruits each year } \mathrm{(year^{-1})} \\ 
-\chi &= \text{Proportion of recruited biomass} \\ 
-& ~~~~~\text{entering Zones 1 or 2} \\ ~ \\
-&\text{Economic Parameters} \\
-q_{f} &= \text{Catchability coefficient for fleet f}  \\ 
-\phi &= \text{Rate of reinvesting in fisheries } \\
-p &= \text{Fish price } \mathrm{(USD~ton^{-1})} \\
-c_{z} &= \text{Cost for SSF effort in zone z} \\
-c &= \text{Cost for DWF effort} \\ 
-\alpha &= \text{Fee (percent of landed value)} \\ ~ \\
-\beta &= \text{Weighting parameter (emphasis on SSF)}
-\end{align}
-$$
 
-$$ 
-\begin{align}
-\frac{dB_{1}}{d \tau} &= -\mu B_{1}-q_{A}B_{1}e_{1}-q_{I}B_{1}E+ vB_{j}(1-{\chi}) \\
+## First go
 
-\frac{dB_{2}}{d \tau} &=  -\mu B_{2}-q_{A}B_{2}e_{2}+ vB_{j}{\chi} \\
+### Function (also new function)
 
-\frac{dB_{3}}{d \tau} &= \gamma(B_{1}+B_{2})-q_{A}B_{3}e_{3}-vB_{3}-\mu B_{3} \\ 
- 
-\frac{de_{1}}{d \tau} &= e_{1} + \phi[-(c_{1}e_{1})^{2}+pq_{A}B_{1}e_{1}] \\
+```{r}
+interaction_new = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE, rtn_npv=FALSE, ban=FALSE) {
+  
+  if(rtn_catch == TRUE & rtn_npv ==TRUE) stop("Error in args `rtn_catch`, `rtn_npv`: cannot specify both as TRUE ")
+  
+  B=vector(mode="numeric", length=0)
+  e1=vector(mode="numeric", length=0)
+  E=vector(mode="numeric", length=0)
+  HS=vector(mode="numeric", length=0)
+  HD=vector(mode="numeric", length=0)
+  benefits=vector(mode="numeric", length=0)
+  PIS=vector(mode="numeric", length=0)
+  catch=vector(mode="numeric", length=0)
+  
+  params = exp(params)
+  
+  # params = c(params, "fee" = as.numeric(choice))
+  
+  state=exp(state)
+  
+  with(as.list(c(state, params, choice)), {
+    
+    B[1] <- B1i + B2i + B3i
+    e1[1] = e1i
+    E[1] = Ei
+    
+    HS[1] = qS*B[1]*e1[1]
+    
+    PIS[1] = (p*HS[1]) - (C1*e1[1])
+    
+    HD[1] = qD*B[1]*E[1]
+    
+    benefits[1] = ((beta)*(PIS[1])) + ((1-beta)*choice*p*HD[1])
+    
+    catch[1] = HS[1] + HD[1]
+    
+    for(t in 2:time) {
+      
+      B[t] = B[t-1] + max(0.45*(B[t-1])*(1-(B[t-1]/K)), 0) - (qS*B[t-1]*e1[t-1]) - (qD*B[t-1]*E[t-1])
+      
+      # B1[t] <- B1[t-1] -(qS*B1[t-1]*e1[t-1]) - (qD*B1[t-1]*E[t-1]) + (recruit*chi)
+      # 
+      # B2[t] <- B2[t-1] -(qS*B2[t-1]*e2[t-1]) + (recruit*(1-chi))
+      # 
+      # spawn_bio <- B1[t-1]+B2[t-1]
+      # 
+      # B3[t] <- B3[t-1] + max(0.45*(spawn_bio)*(1-(spawn_bio/K)), 0) - (qS*B3[t-1]*e3[t-1]) - recruit
+      # 
+      # B3[t] <- B3[t-1] + max(0.45*(spawn_bio)*(1-(spawn_bio/K)), 0) - (qS*B3[t-1]*e3[t-1]) - recruit
+      
+      e1[t] <- (phi*(-((C1*e1[t-1])^2)+(p*qS*B[t-1]*e1[t-1])) ) + e1[t-1] 
+      
+      # if(ban == TRUE) {
+      #   E[t] = 0
+      # } else if(fee > 0.9) {
+      #   E[t] = (1*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # } else {
+      #   E[t] <- (phi*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # }
+      
+      if(ban == TRUE) {
+        E[t] = 0
+      } else {
+        E[t] <- (phi*(-((C*E[t-1])^2)+((1-choice)*p*qD*B[t-1]*E[t-1]))) + E[t-1]
+      }
+      
+      HS[t] = (qS*B[t]*e1[t])
+      
+      PIS[t] <- (p*HS[t]) - (C1*e1[t])
+      
+      HD[t] <- qD*B[t]*E[t]
+      
+      benefits[t] <- (beta*PIS[t]) + ((1-beta)*choice*p*HD[t])
+      
+      catch[t] = HS[t] + HD[t]
+    }
+    
+    t=seq(from=1, to =time, by=1)
+    rho = 1/(1+discount)
+    pv = (rho^t)*benefits
+    pvPIS= (rho^t)*PIS
+    npv=sum(pv)
+    
+    if(rtn_npv == TRUE) {
+      return(-npv)
+    } else if(rtn_catch == TRUE) {
+      return(list(log(catch)))
+    } else {
+      return(tibble(time=t, B=B, e1=e1, E=E, HS=HS, HD=HD, PV=pv, pvPIS=pvPIS, PIS=PIS))
+    }
+  })
+}
 
-\frac{de_{2}}{d \tau} &= e_{2} + \phi[-(c_{2}e_{2})^{2}+pq_{A}B_{2}e_{2}] \\
- 
-\frac{de_{3}}{d \tau} &= e_{3} +  \phi[-(c_{3}e_{3})^{2}+pq_{A}B_{3}e_{3}] \\
- 
-\frac{dE}{d \tau} &= E + \phi[ -(cE)^{2}+(1-\alpha)pq_{I}B_{1}E] \\
+constraint_new = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE, rtn_npv=FALSE, ban=FALSE) {
+  
+  if(rtn_catch == TRUE & rtn_npv ==TRUE) stop("Error in args `rtn_catch`, `rtn_npv`: cannot specify both as TRUE ")
+  
+  B=vector(mode="numeric", length=0)
+  e1=vector(mode="numeric", length=0)
+  E=vector(mode="numeric", length=0)
+  HS=vector(mode="numeric", length=0)
+  HD=vector(mode="numeric", length=0)
+  benefits=vector(mode="numeric", length=0)
+  PIS=vector(mode="numeric", length=0)
+  catch=vector(mode="numeric", length=0)
+  const=vector(mode="numeric", length=0)
+  
+  params = exp(params)
+  
+  # params = c(params, "fee" = as.numeric(choice))
+  
+  state=exp(state)
+  
+  with(as.list(c(state, params, choice)), {
+    
+    B[1] <- B1i + B2i + B3i
+    e1[1] = e1i
+    E[1] = Ei
+    
+    HS[1] = qS*B[1]*e1[1]
+    
+    PIS[1] = (p*HS[1]) - (C1*e1[1])
+    
+    HD[1] = qD*B[1]*E[1]
+    
+    benefits[1] = ((beta)*(PIS[1])) + ((1-beta)*choice*p*HD[1])
+    
+    catch[1] = HS[1] + HD[1]
+    
+    const[1] = catch[1] - B[1]
+    
+    
+    for(t in 2:time) {
+      
+      B[t] = B[t-1] + max(0.45*(B[t-1])*(1-(B[t-1]/K)), 0) - (qS*B[t-1]*e1[t-1]) - (qD*B[t-1]*E[t-1])
+      
+      # B1[t] <- B1[t-1] -(qS*B1[t-1]*e1[t-1]) - (qD*B1[t-1]*E[t-1]) + (recruit*chi)
+      # 
+      # B2[t] <- B2[t-1] -(qS*B2[t-1]*e2[t-1]) + (recruit*(1-chi))
+      # 
+      # spawn_bio <- B1[t-1]+B2[t-1]
+      # 
+      # B3[t] <- B3[t-1] + max(0.45*(spawn_bio)*(1-(spawn_bio/K)), 0) - (qS*B3[t-1]*e3[t-1]) - recruit
+      # 
+      # B3[t] <- B3[t-1] + max(0.45*(spawn_bio)*(1-(spawn_bio/K)), 0) - (qS*B3[t-1]*e3[t-1]) - recruit
+      
+      e1[t] <- (phi*(-((C1*e1[t-1])^2)+(p*qS*B[t-1]*e1[t-1])) ) + e1[t-1] 
+      
+      # if(ban == TRUE) {
+      #   E[t] = 0
+      # } else if(fee > 0.9) {
+      #   E[t] = (1*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # } else {
+      #   E[t] <- (phi*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
+      # }
+      
+      if(ban == TRUE) {
+        E[t] = 0
+      } else {
+        E[t] <- (phi*(-((C*E[t-1])^2)+((1-choice)*p*qD*B[t-1]*E[t-1]))) + E[t-1]
+      }
+      
+      HS[t] = (qS*B[t]*e1[t])
+      
+      PIS[t] <- (p*HS[t]) - (C1*e1[t])
+      
+      HD[t] <- qD*B[t]*E[t]
+      
+      benefits[t] <- (beta*PIS[t]) + ((1-beta)*choice*p*HD[t])
+      
+      catch[t] = HS[t] + HD[t]
+      
+      const[t] = (catch[t]) - B[t]
+    }
+    return(const)
+  })
+} 
 
-\mathrm{C_{SSF, z,t}} &= q_{SSF}B_{z,t}e_{z,t} \\ 
+```
 
-\mathrm{C_{DWF, t}} &= q_{DWF}B_{1,t}E_{t} \\
-
-\Pi_{SSF,t} &= \sum_{z=1}^{z=3} pC_{SSF,z,t } - c_{z} e_{z,t} \\
-
-\mathrm{ NPV} &= \sum_{t=1}^{t=T} \rho^{t}[\mathrm{\beta\Pi_{SSF,t}+(1-\beta) \alpha p C_{DWF}] }
-
-\end{align} 
-$$
-
-## First go 
 
 ```{r}
 # Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
@@ -175,21 +311,21 @@ catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_202
 
 ## Im going to change the effort functions to be additive, because the new effort is insanely high, then change the fleet dynamics parameter to reflect the rate of entry into the fishery (i.e the effort response is not as large or as immediate)
 
-source("../utils/interaction2.R")
-source("../utils/constraint.R")
-source("../utils/loglikelihood.R")
-source("../utils/plot_fx.R")
+# source("../utils/interaction2.R")
+# source("../utils/constraint.R")
+# source("../utils/loglikelihood.R")
+# source("../utils/plot_fx.R")
 
 
 state = c(B1i = 10000, B2i = 10000, B3i = 6000,
-          e1i = 10000, e2i = 12000, e3i = 2000, Ei = 10000,
+          e1i = 10000, Ei = 10000,
           K = 50000)
 
 newstate = c(B1i = 3638.688, B2i = 9807.942, B3i = 5158.846,
-          e1i = 9784.621, e2i = 4307.414, e3i = 1520.177, Ei = 3981.774)
+          e1i = 9784.621, Ei = 3981.774)
 
 upper = c(B1i = 15000, B2i = 15000, B3i = 10000,
-          e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548,
+          e1i = 25761.151, Ei = 26076.548,
           K=60000)
 
 parameters = c(
@@ -205,9 +341,9 @@ time = 10
 
 choice=0.1
 
-tester = interaction_LL(choice=0.1, state=log(state),time=time, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+tester = interaction_new(choice=0.1, state=log(state),time=time, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
 
-npv=-interaction_LL(choice=0.1, state=log(state),time=time, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+npv=-interaction_new(choice=0.1, state=log(state),time=time, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
 
 ddplot(tester, bmsy=TRUE)
 ######################## First test! These are preliminary results for when the fee is 10% of landed value over 10 years, when NaFAA places equal weight on the SSF profit and their revenue from DWF. 
@@ -217,7 +353,7 @@ ddplot(tester, bmsy=TRUE)
 
 ```{r}
 negativeLL(pars=log(state), 
-      funk=interaction_LL, 
+      funk=interaction_new, 
       logobs=log(catch_nafaa[, "catch"]$catch), 
       choice = 0.1,
       indat=catch_nafaa, 
@@ -227,20 +363,20 @@ negativeLL(pars=log(state),
 # This optimization is not working for some reason. Im not sure why 
 
 state = c(B1i = 12000, B2i = 12000, B3i = 6000,
-          e1i = 15000, e2i = 15000, e3i = 7000, Ei = 9000, K=35000)
+          e1i = 15000, Ei = 5000, K=35000)
 
 lower = c(B1i = 3639, B2i = 9808, B3i = 5159,
-          e1i = 9785, e2i = 4307, e3i = 1520, Ei = 3982, K=30000)
+          e1i = 9785, Ei = 3982, K=30000)
 
 upper = c(B1i = 15000, B2i = 15000, B3i = 10000,
-          e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548,
+          e1i = 25761.151, Ei = 26076.548,
           60000)
 
 scalepar=magnitude(state)
 
 best2 <- optim2(par = log(state),
                fn = negativeLL,
-               funk=interaction_LL,
+               funk=interaction_new,
                logobs=log(catch_nafaa[, "catch"]$catch),
                choice=0.1,
                indat=catch_nafaa,
@@ -258,34 +394,13 @@ best2$counts
 best2$convergence
 best2$message
 
-## Testing it with the new spawning function
-# 
-# bestspawn <- optim2(par = log(exp(best2$par)),
-#                fn = negativeLL,
-#                funk=interaction_LL,
-#                logobs=log(catch_nafaa[, "catch"]$catch),
-#                choice=0.1,
-#                indat=catch_nafaa,
-#                params=log(parameters), time=5,
-#                rtn_catch = TRUE, rtn_npv=FALSE,
-#                method="L-BFGS-B",
-#                active = c(FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE),
-#                lower = log(newstate),
-#                upper = log(c(B1i = 15000, B2i = 15000, B3i = 10000,
-#           e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548)),
-#                hessian=TRUE,
-#                control=list(maxit=1000,parscale=scalepar))
-# 
-# options(scipen=999)
-# exp(bestspawn$par)
-# bestspawn$value
-# bestspawn$counts
-# bestspawn$convergence
-# bestspawn$message
-# 
-# spawntesttab = interaction_LL(choice=0.1, state=log(exp(bestspawn$par)),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
-# 
-# spawntestnpv = -interaction_LL(choice=0.1, state=log(exp(best2$par)),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+
+
+spawntesttab = interaction_new(choice=0.1, state=best2$par,time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+
+ddplot(spawntesttab, bmsy=TRUE)
+
+spawntestnpv = -interaction_new(choice=0.1, state=best2$par,time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
 
 ```
 
@@ -300,15 +415,15 @@ best2$message
 # best2par=c(B1i=13259, B2i=11205, B3i=6684, e1i=23950, e2i=25354, e3i=8289, Ei=13605, K=53855)
 # best2par=c(B1i=15000, B2i=12828, B3i=6343, e1i=17393, e2i=18150, e3i=7352, Ei=12516, K=53855)
 # best2par=c(B1i=15000, B2i=12819, B3i=6357, e1i=15971, e2i=16957, e3i=7305, Ei=10000, K=53855) 
-best2par = best2$par
-best2par['K'] = log(53855)
-best2par = exp(best2par)
+# best2par = best2$par
+# best2par['K'] = log(53855)
+# best2par = exp(best2par)
 # best3par=best2par
 ## Five year projection under business as usual
 
-fiveyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE, ban=FALSE)
+fiveyrbautab = interaction_new(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE, ban=FALSE)
 
-fiveyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE, ban=FALSE)
+fiveyrbaunpv = -interaction_new(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE, ban=FALSE)
 
 ## Five year projection under optimized fee structure 
 
@@ -316,11 +431,11 @@ local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
 options=list("algorithm"="NLOPT_LN_AUGLAG",xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
 
 fiveyropt=nloptr(x0 = 0.1,
-                    eval_f = interaction_LL,
+                    eval_f = interaction_new,
                     opts = options,
                     lb = 0,
                     ub = 1,
-                    eval_g_ineq=constraint_fx,
+                    eval_g_ineq=constraint_new,
                     state=log(best2par),
                     time=5, 
                     params=log(parameters),
@@ -333,24 +448,24 @@ fiveyropt=nloptr(x0 = 0.1,
 fiveyropt$solution
 -fiveyropt$objective
 
-fiveyropttab = interaction_LL(choice=fiveyropt$solution, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
+fiveyropttab = interaction_new(choice=fiveyropt$solution, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
 
-fiveyroptnpv = -interaction_LL(choice=fiveyropt$solution, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE)
+fiveyroptnpv = -interaction_new(choice=fiveyropt$solution, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE)
 
 ## Five year projection with a ban
 
-fiveyrbantab = interaction_LL(choice=0.1, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE, ban=TRUE)
+fiveyrbantab = interaction_new(choice=0.1, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE, ban=TRUE)
 
-fiveyrbannpv = -interaction_LL(choice=0.1, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE, ban=TRUE)
+fiveyrbannpv = -interaction_new(choice=0.1, state=log(best2par), time=5, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE, ban=TRUE)
 
-ddplot(fiveyrbautab, bmsy=TRUE)
-ddplot(fiveyropttab, bmsy=TRUE)
-ddplot(fiveyrbantab, bmsy=TRUE)
+ddplot2(fiveyrbautab, bmsy=TRUE)
+ddplot2(fiveyropttab, bmsy=TRUE)
+ddplot2(fiveyrbantab, bmsy=TRUE)
 ```
 
 When running the model under initial parameter values and calibrated initial state values, over a 5-year time period with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 100%, leading to a net present value over a 5-year time period of \$616,737 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF due to net losses, and eventually lead them to leave the fishery due to net capital loss. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$198,707. While the optimal solution represents an effective ban of DWF from Liberia’s EEZ, if NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$12,558 compared to the business as usual case.
 
-### Writing five year plots out to plots folder 
+### Writing five year plots out to plots folder
 
 ```{r}
 ## BAU 
@@ -450,7 +565,6 @@ plotP <- ggplot(fiveyrbautab) +
 # ggsave(here::here("plots/plotP_5yr_bau.png"), plotP)
 ```
 
-
 ```{r}
 ## OPT 
 dfB = fiveyropttab %>% 
@@ -549,7 +663,6 @@ plotP <- ggplot(fiveyropttab) +
 # ggsave(here::here("plots/plotH_5yr_opt.png"), plotH)
 # ggsave(here::here("plots/plotP_5yr_opt.png"), plotP)
 ```
-
 
 ```{r}
 ## BAN 
@@ -651,7 +764,6 @@ plotP <- ggplot(fiveyrbantab) +
 # ggsave(here::here("plots/plotP_5yr_ban.png"), plotP)
 ```
 
-
 ## Ten Year Time Horizon
 
 ```{r}
@@ -659,9 +771,9 @@ plotP <- ggplot(fiveyrbantab) +
 
 ## ten year projection under business as usual
 
-tenyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+tenyrbautab = interaction_new(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
 # 
-# tenyrbautab2 = interaction_LL(choice=1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
+# tenyrbautab2 = interaction_new(choice=1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE)
 # 
 # eff_diff = tibble(time=tenyrbautab1$time, E_low=tenyrbautab1$E, E_high=tenyrbautab2$E, H_low=tenyrbautab1$HD, H_high=tenyrbautab2$HD)
 # 
@@ -672,7 +784,7 @@ tenyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=10, params=log
 #   geom_line(aes(x=time, y=H_low), color="red") + 
 #   geom_line(aes(x=time, y=H_high), color="green")
 
-tenyrbaunpv = -interaction_LL(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
+tenyrbaunpv = -interaction_new(choice=0.1, state=log(best2par),time=10, params=log(parameters), rtn_catch = FALSE, rtn_npv=TRUE)
 
 ## ten year projection under optimized fee structure 
 
@@ -680,11 +792,11 @@ local_opts<-list("algorithm"="NLOPT_LN_COBYLA",xtol_rel=1e-15)
 options=list("algorithm"="NLOPT_LN_AUGLAG",xtol_rel=1e-15,maxeval=160000,"local_opts"=local_opts)
 
 tenyropt=nloptr(x0 = 0.5,
-                    eval_f = interaction_LL,
+                    eval_f = interaction_new,
                     opts = options,
                     lb = 0,
                     ub = 1,
-                    eval_g_ineq=constraint_fx,
+                    eval_g_ineq=constraint_new,
                     state=log(best2par),
                     time=10, 
                     params=log(parameters),
@@ -697,15 +809,15 @@ tenyropt=nloptr(x0 = 0.5,
 tenyropt$solution
 -tenyropt$objective
 
-tenyropttab = interaction_LL(choice=tenyropt$solution, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
+tenyropttab = interaction_new(choice=tenyropt$solution, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE)
 
-tenyroptnpv = -interaction_LL(choice=tenyropt$solution, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE)
+tenyroptnpv = -interaction_new(choice=tenyropt$solution, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE)
 
 ## ten year projection with a ban
 
-tenyrbantab = interaction_LL(choice=0.1, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE, ban=TRUE)
+tenyrbantab = interaction_new(choice=0.1, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=FALSE, ban=TRUE)
 
-tenyrbannpv = -interaction_LL(choice=0.1, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE, ban=TRUE)
+tenyrbannpv = -interaction_new(choice=0.1, state=log(best2par), time=10, params=log(parameters), rtn_catch=FALSE, rtn_npv=TRUE, ban=TRUE)
 
 ddplot(tenyrbautab, bmsy=TRUE)
 ddplot(tenyropttab, bmsy=TRUE)
@@ -736,9 +848,9 @@ tenyrprof = tibble("time" = seq(from=1,to=10),
   summarize(npv = sum(pv_profit))
 ```
 
-When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to to raise the price of the access fee to 100% again, leading to a net present value over a 10-year time period of \$720,837 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF, and similarly to the five year time horizon, lead them to eventually leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$234,627. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$14,131 compared to business as usual. 
+When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to to raise the price of the access fee to 100% again, leading to a net present value over a 10-year time period of \$720,837 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF, and similarly to the five year time horizon, lead them to eventually leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$234,627. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$14,131 compared to business as usual.
 
-### Writing ten year plots out to plots folder 
+### Writing ten year plots out to plots folder
 
 ```{r}
 ## BAU 
@@ -837,7 +949,6 @@ plotP <- ggplot(tenyrbautab) +
 # ggsave(here::here("plots/plotH_10yr_bau.png"), plotH)
 # ggsave(here::here("plots/plotP_10yr_bau.png"), plotP)
 ```
-
 
 ```{r}
 ## OPT 
@@ -938,7 +1049,6 @@ plotP <- ggplot(tenyropttab) +
 # ggsave(here::here("plots/plotH_10yr_opt.png"), plotH)
 # ggsave(here::here("plots/plotP_10yr_opt.png"), plotP)
 ```
-
 
 ```{r}
 ## BAN 
@@ -1163,8 +1273,8 @@ plan(multisession, workers = availableCores() - 1)
 
 sens_obj <- as.data.frame(sens_P$X) %>% 
   future_pmap(cost_wrapper,
-       funk=interaction_LL,
-       confunk=constraint_fx,
+       funk=interaction_new,
+       confunk=constraint_new,
        state=log(best2par),
        time=10,
        params=log(sobolparameters),
@@ -1251,7 +1361,7 @@ cowplot::plot_grid(npv_v_C2_p, npv_v_p_C2,
 # ggsave(here::here("plots/npv_uncertainty_cost.png"), npv_uncertainty_cost)
 ```
 
-### Wellfare Term and its effect on Alpha 
+### Wellfare Term and its effect on Alpha
 
 ```{r}
 
@@ -1313,8 +1423,8 @@ plan(multisession, workers = availableCores() - 1)
 
 sens_npv_obj <- as.data.frame(sens_P$X) %>% 
     future_pmap(beta_wrapper,
-       funk=interaction_LL,
-       confunk=constraint_fx,
+       funk=interaction_new,
+       confunk=constraint_new,
        state=log(best2par),
        time=10,
        params=log(sobolparameters),

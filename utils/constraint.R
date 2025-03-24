@@ -81,7 +81,7 @@ constraint_fx = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE
       B2[t] <- B2[t-1] + (-mu*B2[t-1])-(qS*B2[t-1]*e2[t-1])+(recruit*chi)
       
       B3[t] <- B3[t-1] + (0.45*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K))))) - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
-      # (gamma*(B1[t-1]+B2[t-1])); (gamma*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/K))); (1*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K)))))
+      # (gamma*(B1[t-1]+B2[t-1])); (gamma*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/K))); (1*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K))))); max(0.45*(spawn_bio)*(1-(spawn_bio/K)), 0)
       
       e1[t] <- (phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1])) ) + e1[t-1] 
       

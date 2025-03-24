@@ -265,9 +265,6 @@ ag_both_fleets = ag_ssf %>%
 # test = read.csv(here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
 ```
 
-
-
-
 ### Catch for Cote d'Ivoir
 
 ```{r}
