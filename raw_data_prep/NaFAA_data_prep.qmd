@@ -21,17 +21,12 @@ library(nloptr)
 library(knitr)
 # devtools::install_github("cfree14/datalimited2")
 library(datalimited2) # Package containing functions for use in Data-limited fisheries stock assessment 
-# ?cmsy2 # Could be useful to use 
-# ?bsm # Likely wouldn't work because we need a time series of biomasss data as well 
-# ?zbrt # Could also be useful to use 
-# ?ocom # Could be useful but would need a natural mortality (1/yr are the units)
-# ?rorcs # Would be difficult to use because of the required attributes 
-# ?ms_cmsy # Beta version. But would be useful for a multispecies approach 
 ```
 
 ## Creating Plot of Vessel Catch over time from NaFAA
 
 ```{r}
+## Catch per vessel data
 cpv <- read.csv(here::here("data_raw/data_NaFAA/catch_per_vessel.csv"))
 cpv_dwf <- read.csv(here::here("data_raw/data_NaFAA/distant_water_vessel_catch.csv"))
 

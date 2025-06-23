@@ -125,7 +125,8 @@ c &= \text{Cost for DWF effort} \\
 \end{align}
 $$
 
-\$\$ \begin{align}
+$$ 
+\begin{align}
 \frac{dB_{1}}{d \tau} &= -\mu B_{1}-q_{A}B_{1}e_{1}-q_{I}B_{1}E+ vB_{j}(1-{\chi}) \\
 
 \frac{dB_{2}}{d \tau} &=  -\mu B_{2}-q_{A}B_{2}e_{2}+ vB_{j}{\chi} \\
@@ -148,7 +149,8 @@ $$
 
 \mathrm{ NPV} &= \sum_{t=1}^{t=T} \rho^{t}[\mathrm{\beta\Pi_{SSF,t}+(1-\beta) \alpha p C_{DWF}] }
 
-\end{align} \$\$
+\end{align} 
+$$
 
 ## First go
 
@@ -342,6 +344,7 @@ ddplot(fiveyrbantab, bmsy=TRUE)
 ```
 
 When running the model under initial parameter values and calibrated initial state values, over a 5-year time period with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 100%, leading to a net present value over a 5-year time period of \$616,737 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF due to net losses, and eventually lead them to leave the fishery due to net capital loss. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$198,707. While the optimal solution represents an effective ban of DWF from Liberia’s EEZ, if NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$12,558 compared to the business as usual case.
+
 
 ### Writing five year plots out to plots folder
 
