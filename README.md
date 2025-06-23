@@ -1,6 +1,6 @@
 This is the working project repository for DW Impacts Group Project at the Bren School of Environmental Science & Management 
 
-The goal of this project is to conduct a Cost-Benefit Analysis for the state of Liberia to provide information as well as potential outcomes of modifying their fisheries managment regime. 
+The goal of this project is to conduct a Cost-Benefit Analysis for the state of Liberia to provide information as well as potential outcomes of modifying their fisheries management regime. 
 
 Data References: 
 

@@ -1,0 +1,38 @@
+---
+title: "Archiving Primary Distant Water Impacts NaFAA Data"
+author: "Dustin Duncan"
+format: 
+  html:
+    code-fold: true
+    toc: true
+    number-sections: true
+    embed-resources: true
+editor: visual
+execute:
+  echo: true
+  message: false
+  warning: false
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+dwf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Industrial prod 2018-2023", skip = 3, n_max = 76, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
+  rename(Species = ...1) %>% 
+  mutate(Fleet = "DWF")
+ssf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Artisanal prod 2018-2023", skip = 3, n_max = 106, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
+  rename(Species = ...1) %>% 
+  mutate(Fleet = "SSF")
+
+archive = ssf_ts %>% 
+  rbind(dwf_ts) %>% 
+  relocate(Fleet, .before = Species)
+
+write_csv(archive, here::here("data_int/data_archive/NaFAA_timeseries_production_data_2018_2023.csv"))
+
+test = read.csv(here::here("data_int/data_archive/NaFAA_timeseries_production_data_2018_2023.csv"))
+
+```
+

@@ -31,6 +31,7 @@ constraint_fx = function(choice, state, time, params, indat=NULL, rtn_catch=TRUE
   HD=vector(mode="numeric", length=0)
   benefits=vector(mode="numeric", length=0)
   PIS=vector(mode="numeric", length=0)
+  catch=vector(mode="numeric", length=0)
   conb1=vector(mode="numeric", length=0)
   conb2=vector(mode="numeric", length=0)
   conb3=vector(mode="numeric", length=0)

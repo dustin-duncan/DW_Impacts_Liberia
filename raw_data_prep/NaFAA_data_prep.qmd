@@ -1,5 +1,5 @@
 ---
-title: "Fisheries Stock Assessment Using NaFAA Data"
+title: "Fisheries Assessment Using NaFAA Data"
 author: "Dustin Duncan"
 format: 
   html:
@@ -29,6 +29,37 @@ library(datalimited2) # Package containing functions for use in Data-limited fis
 # ?ms_cmsy # Beta version. But would be useful for a multispecies approach 
 ```
 
+## Creating Plot of Vessel Catch over time from NaFAA
+
+```{r}
+cpv <- read.csv(here::here("data_raw/data_NaFAA/catch_per_vessel.csv"))
+cpv_dwf <- read.csv(here::here("data_raw/data_NaFAA/distant_water_vessel_catch.csv"))
+
+cpv = cpv %>% 
+  mutate(log_catch_boat_year = log(catch_boat_year),
+         cpue = catch/total_effort
+         # ,
+         # sector = case_when(
+         #   sector == "DWF Trawl" ~ "DWF",
+         #   sector == "SSF" ~ "SSF"
+         # )
+         )
+
+catch_per_vessel = ggplot(cpv, aes(x = year, y = catch_boat_year, color = sector))  +
+  geom_line() +
+  scale_x_continuous(limits = c(2010, 2020), breaks = seq(from=2010, to=2020, by=2)) +
+  scale_y_log10() +
+  labs(x = "Year", y = "Catch per Vessel (Log-tonnes)", color = "Sector") +
+  ggtitle("Vessel Catch over Time by Sector") + 
+  scale_color_manual(values = c( "gold2", "forestgreen")) + 
+  theme_light() +
+  theme(legend.position = c(0.865,0.5))
+
+catch_per_vessel
+
+# ggsave(here::here("plots/catch_per_vessel_2010_2020.png"), catch_per_vessel, width = 6.5, height = 3.5)
+```
+
 ## Industrial Fleet Dataprep
 
 Note: For now, we will only be focusing on the Sardinella *aurita* species, although we have created a vector of the species that are present in both DWF and SSF data in case we apply the model to additional species
@@ -36,7 +67,7 @@ Note: For now, we will only be focusing on the Sardinella *aurita* species, alth
 ```{r reading in DWF data}
 dwf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Industrial prod 2018-2023", skip = 3, n_max = 76, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
   rename(Species = ...1)
-view(dwf_ts)
+# view(dwf_ts)
 
 ```
 
@@ -87,7 +118,7 @@ Nafaa_dwf_writeout <- dwf_aurita %>%
 ```{r reading in SSF data}
 ssf_ts <- readxl::read_xlsx("../data_raw/data_NaFAA/Time_series_Production_data.xlsx", sheet = "Artisanal prod 2018-2023", skip = 3, n_max = 106, col_types = c("text", "numeric","numeric","numeric","numeric","numeric","numeric","numeric")) %>% 
   rename(Species = ...1)
-view(ssf_ts)
+# view(ssf_ts)
 ```
 
 ```{r cleaning SSF data}
@@ -133,148 +164,7 @@ Nafaa_ag_writeout = Nafaa_dwf_writeout %>%
 # test = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
 ```
 
-## Combining NaFAA data with catch timeseries from 1990-2017 from FAO.
-
-Due to the civil war in Liberia occuring from 1989 - 2003 and having a large impact on fisheries activities, I think it would be prudent to use the FAO catch data from after 2003. In addition, the FAO catch data is for Sardinella spp., rather than Sardinella aurita, so I will be using the above data to estimate proportion of Sardinella aurita in catch as compared to Sardinella maderensis, to dis-aggregate the FAO data into S. aurita and S. maderensis.
-
-### Estimating proportion of S. aurita to S. maderensis from NaFAA data.
-
-```{r}
-ssf_both <- ssf_ts %>% 
-  filter(Species %in% c("Sardinella maderensis")) %>% # Filtering relevant species 
-  select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
-  pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
-  # Pivoting to tidy format
-  mutate(Year=as.numeric(Year)) %>% 
-  rename(S_mad = Species) %>% 
-  rename(C_mad = Catch) %>% 
-  full_join(x=., y=ssf_aurita, by="Year") %>% 
-  mutate(S_aur_to_S_mad = Catch/C_mad) 
-
-avg_ssf_ratio = mean(ssf_both$S_aur_to_S_mad) # 0.21
-
-dwf_both <- dwf_ts %>% 
-  filter(Species %in% c("Sardinella")) %>% # Filtering relevant species 
-  select(-c(`Grand Total`)) %>% # Removing "Grand Total" column to obtain time series
-  pivot_longer(cols = -Species, names_to = "Year", values_to = "Catch") %>%  
-  # Pivoting to tidy format
-  mutate(Year=as.numeric(Year) )%>% 
-  rename(S_mad = Species) %>% 
-  rename(C_mad = Catch) %>% 
-  full_join(x=., y=dwf_aurita, by="Year")  %>% 
-  mutate(S_aur_to_S_mad = Catch/C_mad)
-
-avg_dwf_ratio = mean(dwf_both$S_aur_to_S_mad, na.rm = TRUE) # 6.72 - pretty large disparity 
-# The estimate from the FAO Cote d'Ivoir data (for industrial) was 9.68. Averaging this and the above ratio gives a ratio of 8.2 aurita to one unit maderensis
-```
-
-### Using estimate of 8.2 to get an estimate of S. aurita from the Liberia catch time-series data from FAO
-
-```{r}
-catch_ts = read.csv(here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv")) %>% 
-  mutate(Catch = Catch_tonnes*1000) 
-
-catch_disag = catch_ts %>% 
-  mutate(C_aur = case_when(
-    Fleet == "Artisanal" ~ (Catch - (Catch/1.21)),
-    Fleet == "Industrial" ~ (Catch - (Catch/9.2))
-  ))
-
-ts_ssf_aur = catch_disag %>% 
-  filter(Fleet %in% "Artisanal") %>% 
-  select(-c(X, Country, Fleet, Catch_tonnes, Catch)) %>% 
-  mutate(Species = "Sardinella aurita") %>% 
-  relocate(Species, .before = Year) %>% 
-  rename(Catch = C_aur) %>% 
-  mutate(Year= as.numeric(Year)) %>% 
-  rbind(ssf_aurita)
-
-ts_dwf_aur = catch_disag %>% 
-  filter(Fleet %in% "Industrial") %>% 
-  select(-c(X, Country, Fleet, Catch_tonnes, Catch)) %>% 
-  mutate(Species = "Sardinella aurita") %>% 
-  relocate(Species, .before = Year) %>% 
-  rename(Catch = C_aur) %>% 
-  mutate(Year= as.numeric(Year)) %>% 
-  rbind(dwf_aurita)
-
-# Time to visualize this.
-
-ggplot(catch_ts) +
-  geom_line(aes(x=Year, y=Catch, color =Fleet)) +
-  theme_bw() + 
-  labs(x="Year", y = "Catch (kg)")
-
-```
-
-### Using Chris Free's 'datalimited2' package to conduct preliminary DWF stock assessment
-
-```{r DWF Data Limited Stock assessment, fig.height=6}
-# ?cmsy2 # Could be useful to use. Takes time series of years (year), time series of catch (catch) and ideally the species intrinsic growth rate, r (r.low, r.hi)
-
-## According to Thorson, Predicting recruitment density dependence... https://onlinelibrary.wiley.com/doi/full/10.1111/faf.12427?_gl=1*1pfgsds*_gcl_au*MTQzNTIzNDc2OC4xNzI3ODk0NDI0LjIxODYyMDgyMy4xNzI4NDI3MDk5LjE3Mjg0MjcwOTk. , the Clupeiformes exhibit a mean intrinsic growth rate of 0.61 with a standard devation of 0.96, 
-
-## The mean prediction for r for S. aurita here was 0.6241839, so I am going to test the cmsy2 method of stock assessment with both a uniform sd and narrowed sd. 
-
-# With standard deviation of r = 0.05
-auritus_dwf_traits <- cmsy2(year=dwf_aurita$Year, catch=dwf_aurita$Catch, r.low=0.47, r.hi=0.77)
-
-plot_dlm(auritus_dwf_traits)
-options(scipen=999)
-ref_pts <- auritus_dwf_traits[["ref_pts"]]
-ref_ts <- auritus_dwf_traits[["ref_ts"]]
-
-viable_k_values <- auritus_dwf_traits[["k_viable"]]
-mean_k <- mean(viable_k_values)*1000
-
-# Now lets try to find S. aurita's intrinsic growth rate 
-# remotes::install_github("James-Thorson-NOAA/FishLife")
-library(FishLife)
-Taxa = Search_species(Genus = "Sardinella",
-                      Species = "aurita")$match_taxonomy
-Predict = Plot_taxa( Taxa[1],
-                     mfrow=c(2,3)) # This creates an object that hosts both "Cov_pred" matrix (estimated covariance between paramters) as well as "Mean_pred" matrix (matrix of empirical Bayes predictions of traits for each taxonomic group. 
-# ?Plot_taxa
-
-mean_pred <- as.data.frame(Predict[[1]]["Mean_pred"])
-
-# KEY FOR MEAN_PRED
-# K = Relative Growth Rate  
-# M = Mortality Rate
-# Winfinity(W_inf) = Asymptotic mass 
-# Loo (L_inf) = Asymptotic Length 
-# tmax (A_max) = Maximum age
-# tm (A_mat) = Age at maturity
-# Lm (L_mat) = Length at maturity
-# Temperature = Average temperature
-# ln_margsd (Sigma_R) = SD of recruitment
-# rho = Recruitment Autocorrelation
-# logitbound_h (h) = Steepness or Recruitment Productivity
-# ln_r (r) = Intrinsic growth rate 
-
-# ?zbrt # Could also be useful to use 
-# ?ocom # Could be useful but would need a natural mortality (1/yr are the units)
-```
-
-```{r SSF Data Limited Stock assessment}
-# ?cmsy2 # Could be useful to use 
-# ?zbrt # Could also be useful to use 
-# ?ocom # Could be useful but would need a natural mortality (1/yr are the units)
-
-ssf_aurita_traits <- cmsy2(year = ssf_aurita$Year, catch = ssf_aurita$Catch, r.low = 0.47, r.hi=0.77)
-
-plot_dlm(ssf_aurita_traits)
-```
-
-```{r Parameter storing }
-options(scipen=999)
-ssf_ref_pts <- ssf_aurita_traits[["ref_pts"]]
-ssf_ref_ts <- ssf_aurita_traits[["ref_ts"]]
-ssf_viable_k_values <- ssf_aurita_traits[["k_viable"]]
-ssf_mean_k <- mean(ssf_viable_k_values)*1000
-```
-
-## Identifying Species Harvested by both DWF and SSF
+## Identifying Species Harvested by both Sectors and Creating plots for CI
 
 ```{r}
 spp_in_both_dwf <- dwf_ts %>% 
@@ -301,93 +191,124 @@ dwf_test <- dwf_ts %>%
   mutate(fleet="DWF") 
 
 ## Leaving this but this is only here to write out plots for CI
-# both_catch = ssf_test %>% 
-#   rbind(dwf_test) %>% 
-#   select(-c(`Grand Total`)) %>% 
-#   pivot_longer(cols =c(`2018`, `2019`, `2020`, `2021`, `2022`, `2023`), names_to="year", values_to="catch_kg") %>% 
-#   mutate(year = as.numeric(year))
+
+# both_catch = ssf_test %>%
+#   rbind(dwf_test) %>%
+#   select(-c(`Grand Total`)) %>%
+#   pivot_longer(cols =c(`2018`, `2019`, `2020`, `2021`, `2022`, `2023`), names_to="year", values_to="catch_kg") %>%
+#   mutate(year = as.numeric(year),
+#          catch_tonnes = catch_kg/1000)
 # 
 # 
-# spp_list = unique(both_catch$Species) 
-# spp_list = spp_list[c(1:8,10:11)]
+# spp_list = unique(both_catch$Species)
 # 
-# Brotula_barbata =ggplot(filter(both_catch, Species %in% spp_list[1]), aes(x=year, y = catch_kg, color=fleet)) + 
+# 
+# Brotula_barbata =ggplot(filter(both_catch, Species %in% spp_list[1]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[1]))
+#   ggtitle(paste0(spp_list[1]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Chloroscombrus_chrysurus = ggplot(filter(both_catch, Species %in% spp_list[2]), aes(x=year, y = catch_kg, color=fleet)) + 
+# 
+# Chloroscombrus_chrysurus = ggplot(filter(both_catch, Species %in% spp_list[2]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[2]))
+#   ggtitle(paste0(spp_list[2]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Cynoglossus_senegalensis = ggplot(filter(both_catch, Species %in% spp_list[3]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Cynoglossus_senegalensis = ggplot(filter(both_catch, Species %in% spp_list[3]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[3]))
+#   ggtitle(paste0(spp_list[3]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Dasyatis_margarita = ggplot(filter(both_catch, Species %in% spp_list[4]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Dasyatis_margarita = ggplot(filter(both_catch, Species %in% spp_list[4]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[4]))
+#   ggtitle(paste0(spp_list[4]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Galeoides_decadactylus = ggplot(filter(both_catch, Species %in% spp_list[5]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Galeoides_decadactylus = ggplot(filter(both_catch, Species %in% spp_list[5]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[5]))
+#   ggtitle(paste0(spp_list[5]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Osteichthyes = ggplot(filter(both_catch, Species %in% spp_list[6]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Osteichthyes = ggplot(filter(both_catch, Species %in% spp_list[6]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[6]))
+#   ggtitle(paste0(spp_list[6]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Pomadasys_jubelini = ggplot(filter(both_catch, Species %in% spp_list[7]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Pomadasys_jubelini = ggplot(filter(both_catch, Species %in% spp_list[7]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[7]))
+#   ggtitle(paste0(spp_list[7]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Pseudotolithus_typus = ggplot(filter(both_catch, Species %in% spp_list[8]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Pseudotolithus_typus = ggplot(filter(both_catch, Species %in% spp_list[8]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[8]))
+#   ggtitle(paste0(spp_list[8]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# new_sard = Nafaa_ag_writeout %>% 
+# new_sard = Nafaa_ag_writeout %>%
 #   mutate(Species = "Sardinella spp",
 #          catch_kg = Catch_tonnes*1000,
 #          fleet = case_when(
-#            Fleet == "Artisanal" ~ "SSF", 
+#            Fleet == "Artisanal" ~ "SSF",
 #            Fleet == "Industrial" ~ "DWF"
 #          ))
 # 
-# Sardinella_spp = ggplot(new_sard, aes(x=Year, y = catch_kg, color=fleet)) + 
+# Sardinella_spp = ggplot(new_sard, aes(x=Year, y = Catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle("Sardinella spp.")
+#   ggtitle("Sardinella spp. Catch over Time by Sector") +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Scomberomorus_tritor = ggplot(filter(both_catch, Species %in% spp_list[10]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Scomberomorus_tritor = ggplot(filter(both_catch, Species %in% spp_list[10]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[10]))
+#   ggtitle(paste0(spp_list[10]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Sphyraena_guachancho = ggplot(filter(both_catch, Species %in% spp_list[11]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Sphyraena_guachancho = ggplot(filter(both_catch, Species %in% spp_list[11]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[11]))
+#   ggtitle(paste0(spp_list[11]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
 # 
-# Trichiurus_lepturus = ggplot(filter(both_catch, Species %in% spp_list[12]), aes(x=year, y = catch_kg, color=fleet)) + 
+# Trichiurus_lepturus = ggplot(filter(both_catch, Species %in% spp_list[12]), aes(x=year, y = catch_tonnes, color=fleet)) +
 #   geom_line() +
-#   labs(x = "Year", y = "Catch (kg)") +
-#   ggtitle(paste(spp_list[12]))
+#   ggtitle(paste0(spp_list[12]," Catch over Time by Sector")) +
+#   labs(x = "Year", y = "Catch (tonnes)", color = "Sector") +
+#   scale_color_manual(values = c("DWF" = "gold2", "SSF" = "forestgreen")) +
+#   theme_light()
+# 
+# spp_list = spp_list[c(1:8,10:11)]
 # 
 # for(i in 1:length(spp_list)) {
 #   plot = str_replace(spp_list[i], " ", "_")
-#   ggsave(filename=paste0("../plots/", plot, ".png"), plot=get(plot))
+#   ggsave(filename=paste0("../plots/", plot, ".png"), plot=get(plot), width = 6.5, height = 3.5)
 # }
 # 
-# ggsave(filename="../plots/Sardinella_spp.png", plot=Sardinella_spp)
+# ggsave(filename="../plots/Sardinella_spp.png", plot=Sardinella_spp, width = 6.5, height = 3.5)
+# 
+# Chloroscombrus_chrysurus; Cynoglossus_senegalensis; Dasyatis_margarita; Galeoides_decadactylus; Osteichthyes; Pomadasys_jubelini; Pseudotolithus_typus; Sardinella_spp; Scomberomorus_tritor; Sphyraena_guachancho; Trichiurus_lepturus
 
 print(spp_vector)
-resilience_table <- resilience(species=spp_vector[1:12])
+resilience_table <- datalimited2::resilience(species=spp_vector[1:12])
 resilience_table[11,1] = c("Dasyatis margarita")
 resilience_table[11,2] = c("Not Documented")
 
@@ -448,7 +369,9 @@ $$
 \mathrm{B_{t+1}^{SSF}= B_{t}^{SSF}+ \frac{\Phi+1}{\Phi}gB_{t}^{SSF}(1-\frac{B_{t}^{SSF}}{K})^\Phi-H_{t}^{SSF}} \\
 \text{Profit Function:} \\
 \mathrm{\Pi_{t}^{DWF}=(1-\alpha)pH_{t}^{DWF}-\frac{cH_{t}^{DWF}}{X_t} }
-$$ $$
+$$
+
+$$
 \mathrm{B_{1,t+1} = D_{1,1}[B_{1,t}+ \frac{\Phi+1}{\Phi}gB_{1,t}(1-\frac{B_{1,t}}{K_{1}})^\Phi-H_{1,t}]  \\ ~~~~~~~~~~~+ D_{2,1}[B_{2,t}+ \frac{\Phi+1}{\Phi}gB_{2,t}(1-\frac{B_{2,t}}{K_{2}})^\Phi-H_{2,t}]}
 $$
 
@@ -551,7 +474,7 @@ v_est=1-exp(-M_est)
 ```
 
 \$\$ \mathrm{\frac{dN_{i}}{dt}=S_{i-1}(t)N_{i-1}(t)-A_{i}N_{i}(t)-S_{i}(t)N_{i}(t) \\~ \\
-S_{i-1}(t)=1-[MR_{i}(t)+FR_{i}(t)]} \\ \~\\ FR\_{i}(t)=\frac{Y_{i}(t)}{B_{i}(t)}=q\_{i}f(t)\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\~\text{     }\~\~\~\~\~\~\~\~\~\~ \\ \~ \\
+S_{i-1}(t)=1-[MR_{i}(t)+FR_{i}(t)]} \\ \~ \\ FR\_{i}(t)=\frac{Y_{i}(t)}{B_{i}(t)}=q\_{i}f(t) \\
 
 \mathrm{N_{i}=\text{Number of fish in age class "i"} \\
 S_{i} = \text{Survival rate} \\

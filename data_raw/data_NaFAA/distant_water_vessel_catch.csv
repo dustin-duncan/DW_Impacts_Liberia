@@ -1,0 +1,112 @@
+﻿year,fleet,catch,species,num_vessels
+2016,EU (Spain & France),201.8,BET,21
+2017,EU (Spain & France),183.8,BET,21
+2018,EU (Spain & France),865.5,BET,21
+2019,EU (Spain & France),327.3,BET,20
+2020,EU (Spain & France),514,BET,20
+2016,EU (Spain & France),410.4394684,YFT,
+2017,EU (Spain & France),2270.4084,YFT,
+2018,EU (Spain & France),2509.99372,YFT,
+2019,EU (Spain & France),1417.5356,YFT,
+2020,EU (Spain & France),2226.02702,YFT,
+2016,EU (Spain & France),810.0993316,SJT,
+2017,EU (Spain & France),2723.188,SJT,
+2018,EU (Spain & France),1630.41944,SJT,
+2019,EU (Spain & France),3094,SJT,
+2020,EU (Spain & France),4858.662879,SJT,
+2016,EU (Spain & France),74.36,Other Pel Spp.,
+2017,EU (Spain & France),355.5084,Other Pel Spp.,
+2018,EU (Spain & France),329.14206,Other Pel Spp.,
+2019,EU (Spain & France),200.616,Other Pel Spp.,
+2020,EU (Spain & France),315.0373342,Other Pel Spp.,
+2016,"EU (big-eye tuna, yellowfin tuna, skipjack tuna & other pelagics)",1496.6588,Total,
+2017,"EU (big-eye tuna, yellowfin tuna, skipjack tuna & other pelagics)",5532.878,Total,
+2018,"EU (big-eye tuna, yellowfin tuna, skipjack tuna & other pelagics)",5335.1038,Total,
+2019,"EU (big-eye tuna, yellowfin tuna, skipjack tuna & other pelagics)",5039.4916,Total,
+2020,"EU (big-eye tuna, yellowfin tuna, skipjack tuna & other pelagics)",7913.7656,Total,
+2016,"Others (Spain, France, Ghana, Senegal & Belize)",186.2,BET,
+2017,"Others (Spain, France, Ghana, Senegal & Belize)",169.6,BET,
+2018,"Others (Spain, France, Ghana, Senegal & Belize)",799,BET,
+2019,"Others (Spain, France, Ghana, Senegal & Belize)",302.2,BET,
+2020,"Others (Spain, France, Ghana, Senegal & Belize)",474.5,BET,
+2016,"Others (Spain, France, Ghana, Senegal & Belize)",378.9,YFT,
+2017,"Others (Spain, France, Ghana, Senegal & Belize)",2095.8,YFT,
+2018,"Others (Spain, France, Ghana, Senegal & Belize)",2316.9,YFT,
+2019,"Others (Spain, France, Ghana, Senegal & Belize)",1308.5,YFT,
+2020,"Others (Spain, France, Ghana, Senegal & Belize)",2054.8,YFT,
+2016,"Others (Spain, France, Ghana, Senegal & Belize)",747.8,SJT,
+2017,"Others (Spain, France, Ghana, Senegal & Belize)",2513.7,SJT,
+2018,"Others (Spain, France, Ghana, Senegal & Belize)",1505,SJT,
+2019,"Others (Spain, France, Ghana, Senegal & Belize)",2856,SJT,
+2020,"Others (Spain, France, Ghana, Senegal & Belize)",44.5,SJT,
+2016,"Others (Spain, France, Ghana, Senegal & Belize)",68.6,Other Pel Spp.,21
+2017,"Others (Spain, France, Ghana, Senegal & Belize)",328.2,Other Pel Spp.,21
+2018,"Others (Spain, France, Ghana, Senegal & Belize)",303.8,Other Pel Spp.,17
+2019,"Others (Spain, France, Ghana, Senegal & Belize)",185.2,Other Pel Spp.,24
+2020,"Others (Spain, France, Ghana, Senegal & Belize)",290.8,Other Pel Spp.,28
+2016,"Private fleets (Tuna, skipjack tina, & other pelagics)",1381.5312,Total,
+2017,"Private fleets (Tuna, skipjack tina, & other pelagics)",5107.272,Total,
+2018,"Private fleets (Tuna, skipjack tina, & other pelagics)",4924.7112,Total,
+2019,"Private fleets (Tuna, skipjack tina, & other pelagics)",4651.8384,Total,
+2020,"Private fleets (Tuna, skipjack tina, & other pelagics)",2864.567131,Total,
+2010,China,538.49,DS,
+2011,China,593.36,DS,
+2012,China,687.2,DS,
+2013,China,1381.57,DS,
+2014,China,493,DS,
+2015,China,541,DS,
+2016,China,543,DS,
+2017,China,229.87,DS,
+2018,China,2529.97,DS,
+2019,China,3464.48,DS,
+2020,China,3389.396,DS,
+2010,China,260.43,PS,
+2011,China,369.06,PS,
+2012,China,366.34,PS,
+2013,China,424.56,PS,
+2014,China,145.36,PS,
+2015,China,229.22,PS,
+2016,China,292,PS,
+2017,China,146.48,PS,
+2018,China,778.23,PS,
+2019,China,3635.83,PS,
+2020,China,1787.298,PS,
+2010,China,182,CS,16
+2011,China,166,CS,7
+2012,China,98,CS,3
+2013,China,65,CS,4
+2014,China,58,CS,1
+2015,China,49,CS,7
+2016,China,141,CS,4
+2017,China,14.43,CS,10
+2018,China,5.02,CS,6
+2019,China,0,CS,4
+2020,China,11.06,CS,6
+2010,"China (demersals, pelagics, & crabs)",980.92,Total,
+2011,"China (demersals, pelagics, & crabs)",1128.42,Total,
+2012,"China (demersals, pelagics, & crabs)",1151.54,Total,
+2013,"China (demersals, pelagics, & crabs)",1871.13,Total,
+2014,"China (demersals, pelagics, & crabs)",696.36,Total,
+2015,"China (demersals, pelagics, & crabs)",819.22,Total,
+2016,"China (demersals, pelagics, & crabs)",976,Total,
+2017,"China (demersals, pelagics, & crabs)",390.78,Total,
+2018,"China (demersals, pelagics, & crabs)",1880.55254,Total,
+2019,"China (demersals, pelagics, & crabs)",6168.756,Total,
+2020,"China (demersals, pelagics, & crabs)",5112.714,Total,
+2021,"China (demersals, pelagics, & crabs)",4292.087,Total,
+2022,"China (demersals, pelagics, & crabs)",5133.931,Total,
+2023,"China (demersals, pelagics, & crabs)",4991.043,Total,
+2010,All DWF Fleets,980.92,Total ,16
+2011,All DWF Fleets,1128.42,Total ,7
+2012,All DWF Fleets,1151.54,Total ,3
+2013,All DWF Fleets,1871.13,Total ,4
+2014,All DWF Fleets,696.36,Total ,1
+2015,All DWF Fleets,819.22,Total ,7
+2016,All DWF Fleets,3854.19,Total ,46
+2017,All DWF Fleets,11030.93,Total ,52
+2018,All DWF Fleets,12140.36754,Total ,44
+2019,All DWF Fleets,15860.086,Total ,48
+2020,All DWF Fleets,20331.494,Total ,54
+2021,All DWF Fleets,13045.187,Total ,
+2022,All DWF Fleets,19346.311,Total ,
+2023,All DWF Fleets,8997.143,Total ,

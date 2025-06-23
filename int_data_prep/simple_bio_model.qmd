@@ -125,8 +125,7 @@ c &= \text{Cost for DWF effort} \\
 \end{align}
 $$
 
-$$ 
-\begin{align}
+\$\$ \begin{align}
 \frac{dB_{1}}{d \tau} &= -\mu B_{1}-q_{A}B_{1}e_{1}-q_{I}B_{1}E+ vB_{j}(1-{\chi}) \\
 
 \frac{dB_{2}}{d \tau} &=  -\mu B_{2}-q_{A}B_{2}e_{2}+ vB_{j}{\chi} \\
@@ -149,10 +148,9 @@ $$
 
 \mathrm{ NPV} &= \sum_{t=1}^{t=T} \rho^{t}[\mathrm{\beta\Pi_{SSF,t}+(1-\beta) \alpha p C_{DWF}] }
 
-\end{align} 
-$$
+\end{align} \$\$
 
-## First go 
+## First go
 
 ```{r}
 # Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
@@ -291,10 +289,10 @@ best2$message
 # best2par=c(B1i=13259, B2i=11205, B3i=6684, e1i=23950, e2i=25354, e3i=8289, Ei=13605, K=53855)
 # best2par=c(B1i=15000, B2i=12828, B3i=6343, e1i=17393, e2i=18150, e3i=7352, Ei=12516, K=53855)
 # best2par=c(B1i=15000, B2i=12819, B3i=6357, e1i=15971, e2i=16957, e3i=7305, Ei=10000, K=53855) 
-# best2par = best2$par
-# best2par['K'] = log(53855)
-# best2par = exp(best2par)
-# best3par=best2par
+best2par = best2$par
+best2par['K'] = log(53855)
+best2par = exp(best2par)
+best3par=best2par
 ## Five year projection under business as usual
 
 fiveyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE, ban=FALSE)
@@ -345,7 +343,7 @@ ddplot(fiveyrbantab, bmsy=TRUE)
 
 When running the model under initial parameter values and calibrated initial state values, over a 5-year time period with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 100%, leading to a net present value over a 5-year time period of \$616,737 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF due to net losses, and eventually lead them to leave the fishery due to net capital loss. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$198,707. While the optimal solution represents an effective ban of DWF from Liberia’s EEZ, if NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$12,558 compared to the business as usual case.
 
-### Writing five year plots out to plots folder 
+### Writing five year plots out to plots folder
 
 ```{r}
 ## BAU 
@@ -444,7 +442,6 @@ plotP <- ggplot(fiveyrbautab) +
 # ggsave(here::here("plots/plotH_5yr_bau.png"), plotH)
 # ggsave(here::here("plots/plotP_5yr_bau.png"), plotP)
 ```
-
 
 ```{r}
 ## OPT 
@@ -545,7 +542,6 @@ plotP <- ggplot(fiveyropttab) +
 # ggsave(here::here("plots/plotP_5yr_opt.png"), plotP)
 ```
 
-
 ```{r}
 ## BAN 
 dfB = fiveyrbantab %>% 
@@ -637,7 +633,7 @@ plotP <- ggplot(fiveyrbantab) +
     labs(x = "Time", y = "Present Value of Benefits") + 
   scale_y_continuous(limits=c(0, max(fiveyrbantab$PV)), breaks = seq(from=0, to=max(fiveyrbantab$PV), by=25000)) +
   ggtitle("Ban Scenario Present Value of Benefits over Time") +
-    theme_bw()
+    theme_bw() 
 
 # ggsave(here::here("plots/plotB_5yr_ban.png"), plotB)
 # ggsave(here::here("plots/plotBmsy_5yr_ban.png"), plotBmsy)
@@ -645,7 +641,6 @@ plotP <- ggplot(fiveyrbantab) +
 # ggsave(here::here("plots/plotH_5yr_ban.png"), plotH)
 # ggsave(here::here("plots/plotP_5yr_ban.png"), plotP)
 ```
-
 
 ## Ten Year Time Horizon
 
@@ -777,12 +772,26 @@ Eplot = ggplot(tenyrall, aes(x = time, y = E, color = scenario)) +
   theme_bw() + 
   theme(legend.position = c(0.81, 0.3), legend.key.size = unit(.5, "cm")) 
 
-ggsave(here::here("plots/plotE_10yr_all_report.png"), Eplot, width = 6.5, height = 3.5)
+# ggsave(here::here("plots/plotE_10yr_all_report.png"), Eplot, width = 6.5, height = 3.5)
+
+plotBmsy_all <- ggplot(tenyrall) +
+    geom_point(aes(x = time, y = bbmsy, color = scenario), alpha = 0.5,
+              position=position_jitter(w=0.0, h=0.02)
+              ) + 
+    # geom_abline(aes(intercept=1, slope = 0), linetype="dashed", color="black") + 
+    labs(x = "Time (years)", y = "B/BMSY") +
+  ggtitle("Business as Usual B/BMSY over Time") +
+  # geom_text(aes(x = 1, y =1.5, label=bmsystart)) +
+  # geom_text(aes(x = 10, y =0.5, label=bmsyend)) + 
+    # scale_y_continuous(limits=c(0,5)) +
+  scale_x_continuous(limits=c(10,10)) +
+    theme_bw()
+plotBmsy_all
 ```
 
-When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to to raise the price of the access fee to 100% again, leading to a net present value over a 10-year time period of \$720,837 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF, and similarly to the five year time horizon, lead them to eventually leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$234,627. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$14,131 compared to business as usual. 
+When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to to raise the price of the access fee to 100% again, leading to a net present value over a 10-year time period of \$720,837 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF, and similarly to the five year time horizon, lead them to eventually leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$234,627. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$14,131 compared to business as usual.
 
-### Writing ten year plots out to plots folder 
+### Writing ten year plots out to plots folder
 
 ```{r}
 ## BAU 
@@ -885,7 +894,6 @@ plotP <- ggplot(tenyrbautab) +
 # ggsave(here::here("plots/plotH_10yr_bau.png"), plotH)
 # ggsave(here::here("plots/plotP_10yr_bau.png"), plotP)
 ```
-
 
 ```{r}
 ## OPT 
@@ -990,7 +998,6 @@ plotP <- ggplot(tenyropttab) +
 # ggsave(here::here("plots/plotH_10yr_opt.png"), plotH)
 # ggsave(here::here("plots/plotP_10yr_opt.png"), plotP)
 ```
-
 
 ```{r}
 ## BAN 
@@ -1321,7 +1328,7 @@ cowplot::plot_grid(npv_v_C2_p, npv_v_p_C2,
 # ggsave(here::here("plots/npv_uncertainty_cost.png"), npv_uncertainty_cost, width = 6.5, height = 3.5)
 ```
 
-### Wellfare Term and its effect on Alpha 
+### Wellfare Term and its effect on Alpha
 
 ```{r}
 
