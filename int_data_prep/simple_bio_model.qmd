@@ -1,9 +1,21 @@
 ---
-title: "SPM_bio_model"
+title: "Spatially Disjoint Surplus Production Model"
+subtitle: "Distant Water Impacts Masters Project, Bren School of Environmental Science and Management (2025)"
 author: "Dustin Duncan"
 format: html
+  code_fold: TRUE
 editor: visual
 ---
+
+## Section 1 - Introduction
+
+This is the script which implements the Bren School of Environmental Science and Management "Deep Water Impacts" Master's group project thesis. This script follows the implementation of a spatially disjoint Gordon-Schaefer model for Liberia's Sardinella fishery, for both Distant Water (DWF) and Small Scale Artisanal Fleets (SSF). This model was adapted from the Gordon Schaefer production model to account for the spatially variable aggregation of Sardinella, which tends to spend its juvenile life stage near-shore and migrate offshore after maturity; it also accounts for the fact that SSF can fish anywhere within Liberia's EEZ, but restricts access of DWF fishing in its Inshore Exclusion Zone (IEZ). As such, SSF effort is distributed between three zones: zone 3 (inshore; targeting juvenile fish), zone 2 (between IEZ boundary and inshore; targeting adult fish), and zone 1 (outside of IEZ; targeting adult fish). DWF effort is assumed to be exclusively in zone 1, and as such affects the catch per unit effort of SSF fishing in zone 1, as they are targeting the same portion of adult fish population. The motivation for developing and implementing this model is to identify the optimal access fee that Liberia's National Fisheries and Aquaculture Authority (NaFAA) should charge DWF to minimize the negative impacts of their activity on SSF.
+
+Data on Sardinella harvest, and effort by fleet were provided for the years 2018-2023 by NaFAA, collected from FAO CECAF Small Pelagics Report (2019), and Rousseau et al., (2024); for raw data processing, see `/raw_data_prep/FAO_data_prep.qmd`, `/raw_data_prep/NaFAA_data_prep.qmd`, and `/raw_data_prep/Rousseau_data_prep.qmd`. These data were aggregated and used in Section 2 to estimate biological parameters for Liberia's Sardinella population, including the intrinsic growth rate of the population **r**, carrying capacity **K**, and catchability coefficient **q** using the **datalimited2** package (Free, CM, 2018). These parameters were estimated using the Bayesian Surplus Production Model function `datalimited2::bsm()`, developed by Froese et al. (2017). 
+
+The remainder of the document defines and implements the spatially disjoint Gordon-Schaefer model, first model initial-state parameters including Effort (by fleet and zone), Initial Biomass (by zone), and carrying capacity were calibrated using Negative Log-Likelihood methods (aggregated fleet and biomass data). The model is then implemented under a 5-year time horizon and 10-year time horizon, using a non-linear optimization algorithm from the **nloptr** package, to find the optimal access fee $\alpha$ that Liberia should charge DWF fleets to maximize both the revenue of the SSF fleet and the revenue obtained by NaFAA from these fees. This is modulated by the $\beta$ term in NaFAA's benefits formula, which is a welfare weighting parameter conceptualized by Abigail Kirk to define the emphasis that NaFAA places on either revenue from DWF or SSF. A $\beta$ of 0 implies complete emphasis on revenue from DWF, whereas a $\beta$ of 1 implies complete emphasis on the benefits of SSF. The utility functions (see `/utils`) which are implemented to calibrate initial state parameters and run the optimization algorithm were developed by Dustin Duncan. 
+
+## 1.1 - Packages Used 
 
 ```{r}
 # rm(list=ls())
@@ -12,6 +24,7 @@ library(devtools)
 # install_github("https://github.com/haddonm/MQMF")
 # devtools::install_github("https://github.com/haddonm/MQMF")
 library(MQMF)
+# install.packages("datalimited2")
 library(datalimited2)
 library(nloptr)
 # install.packages("calibrar")
@@ -24,38 +37,26 @@ library(furrr)
 library(scales)
 ```
 
-### Packages Used
+## 2 - Biological parameter estimation
 
-Oliveros–Ramos R, Shin Y (2016). “calibrar: an R package for the calibration of complex ecological models.” Submitted. R package version 0.3, https://arxiv.org/abs/1603.03141.
+### 2.1 - Loading data 
 
 ```{r}
+# FAO CECAF Small Pelagics Report data
 cpue = read.csv(here::here("data_int/data_FAO/cpue_timeseries_1990_2017.csv"))
 effort = read.csv(here::here("data_int/data_FAO/effort_timeseries_1990_2017.csv"))
 catch = read.csv(here::here("data_int/data_FAO/catch_timeseries_1990_2017.csv"))
-catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
 all_metrics = read.csv(here::here("data_int/data_FAO/all_metrics_timeseries_1997_2017.csv"))
+
+# NaFAA-provided data
+catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv"))
 ```
 
-## Quick Plots
+### 2.2 - Using datalimited2 package to estimate range of q values, and explore fisheries dynamics 
 
 ```{r}
-
-dwf = all_metrics %>% 
-  filter(Fleet %in% "Industrial") %>% 
-  select(Effort, Year)
-ggplot(all_metrics, aes(x = Year, y=CPUE, color=Fleet)) + 
-  geom_line()
-ggplot(dwf, aes(x = Year, y=Effort)) + 
-  geom_line()
-ggplot(all_metrics, aes(x = Year, y=Catch_tonnes, color=Fleet)) + 
-  geom_line()
-
-```
-
-## Using datalimited2 package to estimate range of q values
-
-```{r}
-spmdata = all_metrics %>% 
+# Loading and tidying data from FAO report, using all metrics to calculate aggregated catch per year and  catch per unit effort 
+spm_data = all_metrics %>% 
   group_by(Year) %>% 
   janitor::clean_names() %>%
   summarize(catch = sum(catch_tonnes, na.rm = TRUE),
@@ -69,40 +70,46 @@ spmdata = all_metrics %>%
   ungroup() %>% 
   as.data.frame()
 
-spmdat2 = catch_nafaa %>%
+# Loading NaFAA data, calculating aggregated catch per year 
+spm_data2 = catch_nafaa %>%
   group_by(Year) %>% 
   summarize(Catch_tonnes = sum(Catch_tonnes)) %>%
   rename(year = Year, 
          catch = Catch_tonnes) %>% 
   mutate(effort=NA, cpue=NA)
 
-spmdata = spmdata %>% 
-  rbind(spmdat2)
+# Combining aggregated catch per year data to use with datalimited2 package 
+spm_data = spm_data %>% 
+  rbind(spm_data2)
 
-spmdat3 = read.csv(here::here("data_int/data_lit/effort_Rousseau_bound_FAO_metrics.csv")) %>% 
+# Loading data collected by Rousseau et al. (2024) on effort to create total aggregated catch and effort data by year.
+spm_data3 = read.csv(here::here("data_int/data_lit/effort_Rousseau_bound_FAO_metrics.csv")) %>% 
   select(c(Fleet, Year, Catch_tonnes, Effortday, CPUE_day)) %>%
     janitor::clean_names() %>% 
     group_by(year) %>% 
     summarize(catch = sum(catch_tonnes, na.rm=TRUE),
             effort = sum(effortday, na.rm=TRUE),
             cpue = sum(cpue_day, na.rm=TRUE)) %>% 
-    rbind(spmdat2)
+    rbind(spm_data2)
 
 
 ## Values for K and initial biomass came from this estimate. As we can see compared to the above estimate, the catch data can be very influential on this model output
-bsm_out2 = datalimited2::bsm(year=spmdat3$year, 
-                            catch=spmdat3$catch, 
-                            biomass=spmdat3$cpue, 
+bsm_out = datalimited2::bsm(year=spm_data3$year, 
+                            catch=spm_data3$catch, 
+                            biomass=spm_data3$cpue, 
                             btype="CPUE", 
                             r.low=0.35, r.hi=0.55
                             # ,stb.low=0.4, stb.hi=0.7
                             )
 
-plot_dlm(bsm_out2)
-ref_pts = bsm_out2[["ref_pts"]]
-ref_ts = bsm_out2[["ref_ts"]]
-?datalimited2::bsm
+plot_dlm(bsm_out)
+ref_pts = bsm_out[["ref_pts"]]
+ref_ts = bsm_out[["ref_ts"]]
 ```
+
+## 3 - Implementation of Bio-economic model 
+
+### 3.1 - Parameters used and formulas
 
 $$
 \begin{align}
@@ -152,10 +159,10 @@ $$
 \end{align} 
 $$
 
-## First go
+### 3.2 - Testing Bioeconomic model function 
 
 ```{r}
-# Estimates from FAO: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
+# Estimates from FAO Report: r = 0.45/year, K = 100 000 tonnes, and BI/K = 60 percent, D=40%
 catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_2023.csv")) %>% 
   group_by(Year) %>% 
   summarize(Catch_tonnes = sum(Catch_tonnes)) %>% 
@@ -164,7 +171,6 @@ catch_nafaa = read.csv(here::here("data_int/data_NaFAA/catch_timeseries_2018_202
          catch = Catch_tonnes) %>% 
   mutate(year = seq(from=1, to= 5, by =1))
 
-## Im going to change the effort functions to be additive, because the new effort is insanely high, then change the fleet dynamics parameter to reflect the rate of entry into the fishery (i.e the effort response is not as large or as immediate)
 
 source("../utils/interaction2.R")
 source("../utils/constraint.R")
@@ -176,8 +182,8 @@ state = c(B1i = 10000, B2i = 10000, B3i = 6000,
           e1i = 10000, e2i = 12000, e3i = 2000, Ei = 10000,
           K = 50000)
 
-newstate = c(B1i = 3638.688, B2i = 9807.942, B3i = 5158.846,
-          e1i = 9784.621, e2i = 4307.414, e3i = 1520.177, Ei = 3981.774)
+# newstate = c(B1i = 3638.688, B2i = 9807.942, B3i = 5158.846,
+#           e1i = 9784.621, e2i = 4307.414, e3i = 1520.177, Ei = 3981.774)
 
 upper = c(B1i = 15000, B2i = 15000, B3i = 10000,
           e1i = 25761.151, e2i = 25378.981, e3i = 15071.943, Ei = 26076.548,
@@ -214,8 +220,6 @@ negativeLL(pars=log(state),
       indat=catch_nafaa, 
       params=log(parameters),
       time=5)
-
-# This optimization is not working for some reason. Im not sure why 
 
 state = c(B1i = 12000, B2i = 12000, B3i = 6000,
           e1i = 15000, e2i = 15000, e3i = 7000, Ei = 9000, K=35000)
@@ -1508,3 +1512,52 @@ ggsave(here::here("plots/npv_uncertainty_wfare.png"), npv_uncertainty_wfare, wid
 # ggsave(here::here("plots/alpha_v_beta_phi.png"), alpha_v_beta_phi)
 # ggsave(here::here("plots/alpha_v_phi_beta.png"), alpha_v_phi_beta)
 ```
+
+## Citations:
+
+* FAO. 2019. Report of the FAO/CECAF Working Group on the Assessment of Small Pelagic Fish – Subgroup South.
+  Elmina, Ghana, 12-20 September 2018. Rapport du Groupe de travail FAO/COPACE sur l’évaluation des petits
+  poissons pélagiques – Sous-groupe Sud. Elmina, Ghana, 12-20 septembre 2018. CECAF/ECAF Series / COPACE/PACE
+  Séries No. 19/81. Rome.  
+  
+* Free CM (2018) datalimited2: More stock assessment methods for data-limited fisheries. R package version 0.1.0.
+  https://github.com/cfree14/datalimited2
+  
+* Froese R, Demirel N, Coro G, Kleisner KM, Winker H (2017) Estimating fisheries reference points from catch and
+  resilience. Fish & Fisheries 18(3): 506-526.
+  
+* Haddon M (2023). _MQMF: Modelling and Quantitative Methods in Fisheries_.
+  doi:10.32614/CRAN.package.MQMF <https://doi.org/10.32614/CRAN.package.MQMF>, R package
+  version 0.1.5, <https://CRAN.R-project.org/package=MQMF>.
+
+* Iooss B, Da Veiga S, Janon A, Pujol G (2024). _sensitivity: Global Sensitivity Analysis of
+  Model Outputs and Importance Measures_. doi:10.32614/CRAN.package.sensitivity
+  <https://doi.org/10.32614/CRAN.package.sensitivity>, R package version 1.30.1,
+  <https://CRAN.R-project.org/package=sensitivity>.
+  
+* Johnson S (2008). _The NLopt nonlinear-optimization package_.
+  <https://github.com/stevengj/nlopt>.
+  
+* Oliveros-Ramos R, Shin Y (2016). “calibrar: an R package for the calibration of complex
+  ecological models.” _Submitted_. R package version 0.3, <https://arxiv.org/abs/1603.03141>.
+  
+* Rousseau, Y., Blanchard, J. L., Novaglio, C., Pinnell, K. A., Tittensor, D. P., Watson, R. A., & Ye, Y. (2024).
+  A database of mapped global fishing activity 1950–2017. Scientific Data, 11(1), 48.
+  
+* Vaughan D, Dancho M (2022). _furrr: Apply Mapping Functions in Parallel using Futures_.
+  doi:10.32614/CRAN.package.furrr <https://doi.org/10.32614/CRAN.package.furrr>, R package
+  version 0.3.1, <https://CRAN.R-project.org/package=furrr>.
+  
+* Wickham H, Averick M, Bryan J, Chang W, McGowan LD, François R, Grolemund G, Hayes A, Henry
+  L, Hester J, Kuhn M, Pedersen TL, Miller E, Bache SM, Müller K, Ooms J, Robinson D, Seidel
+  DP, Spinu V, Takahashi K, Vaughan D, Wilke C, Woo K, Yutani H (2019). “Welcome to the
+  tidyverse.” _Journal of Open Source Software_, *4*(43), 1686. doi:10.21105/joss.01686
+  <https://doi.org/10.21105/joss.01686>.
+  
+* Wickham H, Henry L (2025). _purrr: Functional Programming Tools_.
+  doi:10.32614/CRAN.package.purrr <https://doi.org/10.32614/CRAN.package.purrr>, R package
+  version 1.0.4, <https://CRAN.R-project.org/package=purrr>.
+  
+* Wickham H, Pedersen T, Seidel D (2025). _scales: Scale Functions for Visualization_.
+  doi:10.32614/CRAN.package.scales <https://doi.org/10.32614/CRAN.package.scales>, R package
+  version 1.4.0, <https://CRAN.R-project.org/package=scales>.

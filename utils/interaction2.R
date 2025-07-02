@@ -46,7 +46,7 @@ interaction_LL = function(choice, state, time, params, indat=NULL, rtn_catch=TRU
     B3[1] = B3i
     e1[1] = e1i
     e2[1] = e2i
-    e3[1] = e3i # 102410*0.34
+    e3[1] = e3i 
     E[1] = Ei
     
     HS1[1] = (qS*B1[1]*e1[1])
@@ -72,27 +72,12 @@ interaction_LL = function(choice, state, time, params, indat=NULL, rtn_catch=TRU
       B2[t] <- B2[t-1] + (-mu*B2[t-1])-(qS*B2[t-1]*e2[t-1])+(recruit*(1-chi))
       
       B3[t] <- B3[t-1] + (0.45*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K))))) - (qS*B3[t-1]*e3[t-1]) - recruit -(mu*B3[t-1])
-      # (gamma*(B1[t-1]+B2[t-1])); (gamma*(B1[t-1]+B2[t-1])*(1-((B1[t-1]+B2[t-1])/K))); (1*(B1[t-1]+B2[t-1])*(ifelse((B1[t-1]+B2[t-1]) > K, 0, (1-((B1[t-1]+B2[t-1])/K))))); max(0.45*(spawn_bio)*(1-(spawn_bio/K)), 0)
       
       e1[t] <- (phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1])) ) + e1[t-1] 
       
       e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1] 
       
-      # if((phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))) < 0) {
-      # e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1] + (-(phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))))
-      # } else if((phi*(-((C1*e1[t-1])^2)+(p*qS*B1[t-1]*e1[t-1]))) >= 0) {
-        # e2[t] <- (phi*(-((C2*e2[t-1])^2)+(p*qS*B2[t-1]*e2[t-1])))  + e2[t-1]
-      # }
-      
       e3[t] <- (phi*(-((C3*e3[t-1])^2)+(p*qS*B3[t-1]*e3[t-1]))) + e3[t-1] 
-      
-      # if(ban == TRUE) {
-      #   E[t] = 0
-      # } else if(fee > 0.9) {
-      #   E[t] = (1*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
-      # } else {
-      #   E[t] <- (phi*(-((C*E[t-1])^2)+((1-fee)*p*qD*B1[t-1]*E[t-1]))) + E[t-1]
-      # }
       
       if(ban == TRUE) {
         E[t] = 0

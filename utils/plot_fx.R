@@ -56,21 +56,4 @@ ddplot = function(df, bmsy=FALSE, rtn_plot=NULL) {
   } else {
       return(plotBmsy)
   }
-  # if(bmsy == FALSE & is.null(rtn_plot)) {
-  #   return(plot)
-  # } else if(!is.null(rtn_plot)) {
-  #   return(plotBmsy)
-  # } else if(bmsy == FALSE & rtn_plot == "B"){
-  #   return(plotB)
-  # } else if(bmsy == FALSE & rtn_plot == "Bmsy"){
-  #   return(plotBmsy)
-  # } else if(bmsy == FALSE & rtn_plot == "E"){
-  #   return(plotE)
-  # } else if(bmsy == FALSE & rtn_plot == "H"){
-  #   return(plotH)
-  # } else if(bmsy == FALSE & rtn_plot == "P"){
-  #   return(plotP)
-  # }
-  
-  
 }
