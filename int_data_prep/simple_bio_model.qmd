@@ -210,7 +210,7 @@ ddplot(tester, bmsy=TRUE)
 ######################## First test! These are preliminary results for when the fee is 10% of landed value over 10 years, when NaFAA places equal weight on the SSF profit and their revenue from DWF. 
 ```
 
-## Initial State calibration against NaFAA data
+### 3.3 - Initial State calibration against NaFAA data
 
 ```{r}
 negativeLL(pars=log(state), 
@@ -284,21 +284,16 @@ best2$message
 
 ```
 
-## Five Year Time Horizon
+### 3.4 - Five Year Time Horizon
 
 ```{r}
 # Back of the napkin math used to estimate the starting catchability for each fleet. Used the all_metrics dataframe to divide catch by 22020*effort for 2017 (artisanal) and 2007 (industrial)
-# best2par = c(B1i=15000, B2i=15000, B3i=7133, e1i=12186, e2i=16437, e3i=2193, Ei=3982,K=53855)
-# best2par = c(B1i=14120, B2i=11827, B3i=6009, e1i=20630, e2i=25241, e3i=7016, Ei=5023, K=37600) 
-# best2par=c(B1i=15000, B2i=11524, B3i=6009, e1i=19884, e2i=23843, e3i=7014, Ei=5024, K=37600)
-# best2par=c(B1i=13755, B2i=11621, B3i=6724, e1i=23920, e2i=24550, e3i=8225, Ei=6838, K=37600)
-# best2par=c(B1i=13259, B2i=11205, B3i=6684, e1i=23950, e2i=25354, e3i=8289, Ei=13605, K=53855)
-# best2par=c(B1i=15000, B2i=12828, B3i=6343, e1i=17393, e2i=18150, e3i=7352, Ei=12516, K=53855)
-# best2par=c(B1i=15000, B2i=12819, B3i=6357, e1i=15971, e2i=16957, e3i=7305, Ei=10000, K=53855) 
+
 best2par = best2$par
 best2par['K'] = log(53855)
 best2par = exp(best2par)
 best3par=best2par
+
 ## Five year projection under business as usual
 
 fiveyrbautab = interaction_LL(choice=0.1, state=log(best2par),time=5, params=log(parameters), rtn_catch = FALSE, rtn_npv=FALSE, ban=FALSE)
@@ -350,7 +345,7 @@ ddplot(fiveyrbantab, bmsy=TRUE)
 When running the model under initial parameter values and calibrated initial state values, over a 5-year time period with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to raise the price of the access fee to 100%, leading to a net present value over a 5-year time period of \$616,737 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF due to net losses, and eventually lead them to leave the fishery due to net capital loss. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$198,707. While the optimal solution represents an effective ban of DWF from Liberia’s EEZ, if NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$12,558 compared to the business as usual case.
 
 
-### Writing five year plots out to plots folder
+#### 3.4.1 - Writing Business as Usual scenario five year time horizon plots out to plots folder
 
 ```{r}
 ## BAU 
@@ -450,6 +445,8 @@ plotP <- ggplot(fiveyrbautab) +
 # ggsave(here::here("plots/plotP_5yr_bau.png"), plotP)
 ```
 
+#### 3.4.2 - Writing Optimized scenario five year time horizon plots out to plots folder
+
 ```{r}
 ## OPT 
 dfB = fiveyropttab %>% 
@@ -548,6 +545,8 @@ plotP <- ggplot(fiveyropttab) +
 # ggsave(here::here("plots/plotH_5yr_opt.png"), plotH)
 # ggsave(here::here("plots/plotP_5yr_opt.png"), plotP)
 ```
+
+#### 3.4.3 - Writing Ban scenario five year time horizon plots out to plots folder
 
 ```{r}
 ## BAN 
@@ -649,7 +648,7 @@ plotP <- ggplot(fiveyrbantab) +
 # ggsave(here::here("plots/plotP_5yr_ban.png"), plotP)
 ```
 
-## Ten Year Time Horizon
+### 3.5 - Ten Year Time Horizon
 
 ```{r}
 # Back of the napkin math used to estimate the starting catchability for each fleet. Used the all_metrics dataframe to divide catch by 22020*effort for 2017 (artisanal) and 2007 (industrial)
@@ -798,7 +797,7 @@ plotBmsy_all
 
 When running the model under initial parameter values and calibrated initial state values, over a 10-year time horizon with NaFAA placing equal weight on the profit of small scale fishers and the revenue from DWF, the optimal solution found was to to raise the price of the access fee to 100% again, leading to a net present value over a 10-year time period of \$720,837 USD, in 2023 dollar value. This solution would cause a decline in effort from DWF, and similarly to the five year time horizon, lead them to eventually leave the fishery. Compared to the business as usual case, this would increase the net present value of fisheries revenues by \$234,627. If NaFAA were to immediately ban and restrict access by DWF, the net present value of fisheries revenues would decrease by \$14,131 compared to business as usual.
 
-### Writing ten year plots out to plots folder
+#### 3.5.1 - Writing Business as Usual scenario ten year time horizon plots out to plots folder
 
 ```{r}
 ## BAU 
@@ -901,6 +900,8 @@ plotP <- ggplot(tenyrbautab) +
 # ggsave(here::here("plots/plotH_10yr_bau.png"), plotH)
 # ggsave(here::here("plots/plotP_10yr_bau.png"), plotP)
 ```
+
+#### 3.5.2 - Writing Optimized scenario ten year time horizon plots out to plots folder
 
 ```{r}
 ## OPT 
@@ -1005,6 +1006,8 @@ plotP <- ggplot(tenyropttab) +
 # ggsave(here::here("plots/plotH_10yr_opt.png"), plotH)
 # ggsave(here::here("plots/plotP_10yr_opt.png"), plotP)
 ```
+
+#### 3.5.3 - Writing Ban scenario ten year time horizon plots out to plots folder
 
 ```{r}
 ## BAN 
@@ -1143,9 +1146,11 @@ ggplot(allcpue, aes(x = time, y = cpue, color = scenario), alpha = 0.5) +
   facet_wrap(~fleet, scales = "free")
 ```
 
-## Sobol Sensitivity Analysis
+## Section 4 - Sobol Sensitivity Analysis
 
-For this sensitivity analysis we will be varying cost and price parameters to estimate how sensitive the bio-economic model is to them. To do this, we will create a wrapper function that takes the Sobol object as an input, and applies them to the interactionLl function.
+For this sensitivity analysis we will be varying cost and price parameters to estimate how sensitive the bio-economic model is to them. To do this, we will create a wrapper function that takes the Sobol object as an input, and applies them to the interactionLL function.
+
+### 4.1 - Cost and Price sensitivity
 
 ```{r}
 parameters
@@ -1335,7 +1340,7 @@ cowplot::plot_grid(npv_v_C2_p, npv_v_p_C2,
 # ggsave(here::here("plots/npv_uncertainty_cost.png"), npv_uncertainty_cost, width = 6.5, height = 3.5)
 ```
 
-### Wellfare Term and its effect on Alpha
+### 4.2 - Wellfare term and Alpha sensitivity
 
 ```{r}
 
