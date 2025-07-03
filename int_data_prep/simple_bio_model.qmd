@@ -15,7 +15,7 @@ Data on Sardinella harvest, and effort by fleet were provided for the years 2018
 
 The remainder of the document defines and implements the spatially disjoint Gordon-Schaefer model, first model initial-state parameters including Effort (by fleet and zone), Initial Biomass (by zone), and carrying capacity were calibrated using Negative Log-Likelihood methods (aggregated fleet and biomass data). The model is then implemented under a 5-year time horizon and 10-year time horizon, using a non-linear optimization algorithm from the **nloptr** package, to find the optimal access fee $\alpha$ that Liberia should charge DWF fleets to maximize both the revenue of the SSF fleet and the revenue obtained by NaFAA from these fees. This is modulated by the $\beta$ term in NaFAA's benefits formula, which is a welfare weighting parameter conceptualized by Abigail Kirk to define the emphasis that NaFAA places on either revenue from DWF or SSF. A $\beta$ of 0 implies complete emphasis on revenue from DWF, whereas a $\beta$ of 1 implies complete emphasis on the benefits of SSF. The utility functions (see `/utils`) which are implemented to calibrate initial state parameters and run the optimization algorithm were developed by Dustin Duncan. 
 
-## 1.1 - Packages Used 
+### 1.1 - Packages Used 
 
 ```{r}
 # rm(list=ls())
